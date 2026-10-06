@@ -68,7 +68,7 @@ docker run -d --rm --name "$DB_CONTAINER" --network "$NETWORK" \
 # owns schema creation (including canonical triggers); the PHP runtime identity is
 # created afterwards with data-plane grants only.  This intentionally reproduces
 # the provision_property.php contract instead of letting the app user act as DBA.
-tests/uat_prd/mysql-bootstrap-runtime-boundary.sh \
+bash tests/uat_prd/mysql-bootstrap-runtime-boundary.sh \
   "$DB_CONTAINER" tamasya_prd_saas root-ci-only tamasya_ci tamasya-ci-only \
   SELECT,INSERT,UPDATE,DELETE property database_setup.sql
 
@@ -112,7 +112,7 @@ python3 - "$PING_BODY" <<'PY'
 import json,sys
 x=json.load(open(sys.argv[1],encoding='utf-8'))
 assert x.get('success') is True and x.get('liveness') is True and x.get('ready') is True, x
-assert x.get('buildId')=='20261006-owner-enterprise-r7', x
+assert x.get('buildId')=='20261006-github-uat-r8', x
 print('PASS SaaS routed API+MySQL ping',x.get('requestId'),x.get('serverRevision'))
 PY
 

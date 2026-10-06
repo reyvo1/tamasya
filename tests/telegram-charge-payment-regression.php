@@ -71,4 +71,13 @@ tgCheck(tamasyaTelegramChargeMoney(110000.3)==='Rp 110.000,3'&&tamasyaTelegramCh
 $owner=['id'=>'owner','role'=>'owner'];tgReject(fn()=>tamasyaEmployeeCreateLeaveRequest($db,$owner,[],'owner-test','telegram'),'Owner cannot create leave through Telegram or web');tgReject(fn()=>tamasyaEmployeeCancelLeaveRequest($db,$owner,'leave1','','telegram'),'Owner cannot cancel leave through Telegram or web');
 foreach(['250000'=>250000.0,'250.000'=>250000.0,'250.000,30'=>250000.3,'0'=>0.0,'Rp 0'=>0.0,'rp. 1.265.000,25'=>1265000.25,'1000000000000'=>1000000000000.0] as $input=>$value)tgCheck(tamasyaTelegramParseMoney((string)$input)===$value,'Strict money accepts correct amount: '.$input);
 foreach(['-500','1.5','250000abc','1,234','0abc','1e6','1000000000001',''] as $input)tgCheck(tamasyaTelegramParseMoney($input)===null,'Strict money rejects altered or ambiguous digits: '.$input);
+// Bound and unbound simulator responses use the real projection gate.
+$GLOBALS['simulationProjectionCalls']=0;
+function getRoleScopedHotelData($pdo,$staff){$GLOBALS['simulationProjectionCalls']++;return ['currentUser'=>['id'=>$staff['id'],'role'=>$staff['role']]];}
+tgCheck(tamasyaTelegramSimulationHotelData($db,null)===null&&$GLOBALS['simulationProjectionCalls']===0,'Unbound Telegram simulator never reads hotel data or calls typed session projection');
+tgCheck(tamasyaTelegramSimulationHotelData($db,[])===null&&$GLOBALS['simulationProjectionCalls']===0,'Empty Telegram identity cannot read hotel data');
+$simData=tamasyaTelegramSimulationHotelData($db,['id'=>'bound-operator','role'=>'receptionist']);
+tgCheck($simData['currentUser']['role']==='receptionist'&&$GLOBALS['simulationProjectionCalls']===1,'Bound simulator reads the resolved staff scope, preserving its real role');
+$webhook=file_get_contents(dirname(__DIR__).'/api/routes/080_telegram_webhook.php');
+tgCheck(substr_count($webhook,'"db" => tamasyaTelegramSimulationHotelData($pdo, $loggedInStaff)')===2,'Message and callback simulators both use the guarded hotel projection');
 echo "$passed passed; 0 failed\n";

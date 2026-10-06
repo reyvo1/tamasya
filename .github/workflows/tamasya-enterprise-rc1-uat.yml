@@ -305,7 +305,7 @@ jobs:
           docker run -d --rm --name tamasya-prd-r2-mysql --network tamasya-prd-r2-adapter-net -e MYSQL_ROOT_PASSWORD=root-ci-only -e MYSQL_DATABASE=tamasya_hq_prd "$MYSQL_IMAGE" >/dev/null
           cleanup(){ kill "$mock_pid" >/dev/null 2>&1 || true; docker rm -f tamasya-prd-r2-mysql >/dev/null 2>&1 || true; docker network rm tamasya-prd-r2-adapter-net >/dev/null 2>&1 || true; }
           trap cleanup EXIT
-          tests/uat_prd/mysql-bootstrap-runtime-boundary.sh \
+          bash tests/uat_prd/mysql-bootstrap-runtime-boundary.sh \
             tamasya-prd-r2-mysql tamasya_hq_prd root-ci-only tamasya_ci tamasya-ci-only \
             SELECT,INSERT,UPDATE hq hq/schema.sql hq/delivery_schema.sql
           cat >"$work/hq/config.json" <<EOF
@@ -723,12 +723,12 @@ jobs:
       - name: Two-node separate-DB Primary/Standby failover and convergence UAT
         run: |
           set -euo pipefail
-          tests/uat_rc1/run_two_node_complete.sh
+          bash tests/uat_rc1/run_two_node_complete.sh
 
       - name: Two-property HQ signed HTTPS aggregation UAT
         run: |
           set -euo pipefail
-          tests/uat_rc1/run_hq_multi_property_complete.sh
+          bash tests/uat_rc1/run_hq_multi_property_complete.sh
 
       - name: Fail closed on any recorded scenario assertion
         if: always()

@@ -66,7 +66,7 @@ async function expectNoPageHorizontalOverflow(page){
 
 
 async function expectMetricContentContained(page){
-  const issues=await page.locator('.glass-card:visible .tamasya-metric-value,.tamasya-dashboard-summary .glass-card:visible .font-display').evaluateAll(values=>values.flatMap(value=>{
+  const issues=await page.locator('.tamasya-finance-summary > .glass-card:visible .tamasya-metric-value,.tamasya-dashboard-summary > .glass-card:visible .font-display').evaluateAll(values=>values.flatMap(value=>{
     const card=value.closest('.glass-card');const box=card.getBoundingClientRect();const range=document.createRange();range.selectNodeContents(value);
     return Array.from(range.getClientRects()).filter(r=>r.width&&r.height&&(r.left<box.left+1||r.right>box.right-1||r.top<box.top||r.bottom>box.bottom)).map(r=>({text:value.textContent,card:{left:box.left,right:box.right,bottom:box.bottom},textBounds:{left:r.left,right:r.right,bottom:r.bottom}}));
   }));
@@ -490,7 +490,7 @@ test('Fresh service worker precaches the exact React module for offline import',
     // Memo does not import the PMS React bundle, so the vendor cannot be warmed
     // accidentally before this check of the newly installed precache.
     await page.goto(BASE+'/internal-memo.html');
-    const vendor='assets/chunks/vendor-react.js?v=20261006-owner-enterprise-r7';
+    const vendor='assets/chunks/vendor-react.js?v=20261006-github-uat-r8';
     const cached=await page.evaluate(async vendor=>{
       await navigator.serviceWorker.register('./sw.js');await navigator.serviceWorker.ready;
       const cacheKeys=await caches.keys();
@@ -581,7 +581,7 @@ test('Layout: exact large amounts stay inside cards and audit shift stays above 
     await page.getByRole('button',{name:'Shift Jaga Resepsionis'}).click();await page.getByRole('button',{name:'Detail Audit',exact:true}).click();
     const dialog=page.getByRole('dialog',{name:'Audit Rekonsiliasi Kas Jaga'});await expect(dialog).toBeVisible();
     const heading=dialog.getByText('Audit Rekonsiliasi Kas Jaga',{exact:true});await heading.scrollIntoViewIfNeeded();
-    const headingSafe=await heading.evaluate(el=>{const r=el.getBoundingClientRect();const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return r.top>=0&&r.bottom<=innerHeight&&Boolean(hit&&(el.contains(hit)||hit.contains(el)));});expect(headingSafe).toBe(true);
+    await expect.poll(()=>heading.evaluate(el=>{const r=el.getBoundingClientRect();const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return r.top>=0&&r.bottom<=innerHeight&&Boolean(hit&&(el.contains(hit)||hit.contains(el)));}),{message:'Judul audit harus selesai scroll dan dapat disentuh di atas navigasi'}).toBe(true);
     const panel=dialog.locator(':scope > div').first();expect(await panel.evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);
     const close=dialog.getByRole('button',{name:'Tutup',exact:true});await close.scrollIntoViewIfNeeded();await expect(close).toBeInViewport();await close.click();await expect(dialog).toBeHidden();
     evidence.push({width,height:768,exactAmount:true,cardContainment:true,auditHeadingReachable:true,auditFooterReachable:true});

@@ -1,13 +1,14 @@
-import {TamasyaViewportLayer} from "./viewport-layer.js?v=20261006-owner-enterprise-r7";
+import {TamasyaViewportLayer,TamasyaFloatingLayer} from "./viewport-layer.js?v=20261006-github-uat-r8";
 /*! TAMASYA split2 chunk: original FIX28R5 function body with safe mutable-cache reset bridge for Gpe. */
-import {A$,Ape,Bu,CA,CK,Ed,Eh,Epe,GR,G_,Hh,Hle,Ipe,Kpe,Kv,Mle,Mz,Ole,PA,PK,Ph,Pr,Pu,Qg,Qle,Rpe,TA,Uo,W_,Wg,Xle,Yle,_K,_c,_pe,db,ej,f,ml,moe,noe,oE,poe,ppe,qi,qm,rz,soe,t as tamasyaJsx,tamasyaResetClusterEndpointCache,un,yo,zm,zr} from "../app-core.js?v=20261006-owner-enterprise-r7";
-import {$pe,A6,AK,B$,B6,Di,Ec,Eu,Fpe,Fv,Fx,G1,Hpe,Id,Ii,Ja,Jh,Jz,K$,KL,Kr,L$,LL,Ld,Md,Mh,NK,NL,N_,O6,Oc,P$,Q1,Q6,R$,R_,S6,SA,SK,TK,Tl,U0,Ue,Um,Un,Upe,Uz,Vi,Vpe,Vx,X1,Z_,Zk,_u,a$,aE,aj,as,cE,cpe,dpe,e6,e8,ei,fE,fh,fi,g6,h6,hj,la,ls,m$,mK,mpe,nj,ope,q$,ql,qpe,qv,sj,tE,tamasyaMergeRoomCanonical,tamasyaReservationInventoryOpen,tamasyaReservationWindowHasConflict,tp,u$,upe,vK,vr,vu,w6,wA,wK,x$,xs,xz,yK,yi,z_,zpe} from "./app-shared.js?v=20261006-owner-enterprise-r7";
-import {TAMASYA_DOMAIN_NAV,tamasyaVisibleDomainMembers,tamasyaVisibleModuleCards} from "../navigation-registry.js?v=20261006-owner-enterprise-r7";
+import {A$,Ape,Bu,CA,CK,Ed,Eh,Epe,GR,G_,Hh,Hle,Ipe,Kpe,Kv,Mle,Mz,Ole,PA,PK,Ph,Pr,Pu,Qg,Qle,Rpe,TA,Uo,W_,Wg,Xle,Yle,_K,_c,_pe,db,ej,f,ml,moe,noe,oE,poe,ppe,qi,qm,rz,soe,t as tamasyaJsx,tamasyaResetClusterEndpointCache,un,yo,zm,zr} from "../app-core.js?v=20261006-github-uat-r8";
+import {$pe,A6,AK,B$,B6,Di,Ec,Eu,Fpe,Fv,Fx,G1,Hpe,Id,Ii,Ja,Jh,Jz,K$,KL,Kr,L$,LL,Ld,Md,Mh,NK,NL,N_,O6,Oc,P$,Q1,Q6,R$,R_,S6,SA,SK,TK,Tl,U0,Ue,Um,Un,Upe,Uz,Vi,Vpe,Vx,X1,Z_,Zk,_u,a$,aE,aj,as,cE,cpe,dpe,e6,e8,ei,fE,fh,fi,g6,h6,hj,la,ls,m$,mK,mpe,nj,ope,q$,ql,qpe,qv,sj,tE,tamasyaMergeRoomCanonical,tamasyaReservationInventoryOpen,tamasyaReservationWindowHasConflict,tp,u$,upe,vK,vr,vu,w6,wA,wK,x$,xs,xz,yK,yi,z_,zpe} from "./app-shared.js?v=20261006-github-uat-r8";
+import {TAMASYA_DOMAIN_NAV,tamasyaVisibleDomainMembers,tamasyaVisibleModuleCards} from "../navigation-registry.js?v=20261006-github-uat-r8";
 const t={...tamasyaJsx,jsx:(type,props,key)=>tamasyaJsx.jsx(type,window.TamasyaOwnerReadOnlyPolicy.componentProps(sessionStorage.getItem('hotel_staff_role')||sessionStorage.getItem('hotel_role'),props),key),jsxs:(type,props,key)=>tamasyaJsx.jsxs(type,window.TamasyaOwnerReadOnlyPolicy.componentProps(sessionStorage.getItem('hotel_staff_role')||sessionStorage.getItem('hotel_role'),props),key)};
 function TamasyaDomainNavGroup(props) {
   const { id, label, icon, members, allowed, current, onSelect, role } = props;
   const [open, setOpen] = f.useState(false);
   const hostRef = f.useRef(null);
+  const menuRef = f.useRef(null);
   const [position, setPosition] = f.useState({ left: 12, top: 72, width: 220 });
   const visibleMembers = tamasyaVisibleDomainMembers({ members }, allowed, role);
   const [workspaceActive, setWorkspaceActive] = f.useState(() => String(document.body?.dataset?.uiCoreWorkspace || ''));
@@ -39,27 +40,34 @@ function TamasyaDomainNavGroup(props) {
   f.useEffect(() => {
     if (!open) return undefined;
     const onPointerDown = (event) => {
-      if (hostRef.current && !hostRef.current.contains(event.target)) setOpen(false);
+      if (hostRef.current && !hostRef.current.contains(event.target) && !menuRef.current?.contains(event.target)) setOpen(false);
     };
     const onKeyDown = (event) => { if (event.key === 'Escape') setOpen(false); };
-    const close = () => setOpen(false);
-    const onScroll = (event) => {
-      // The primary navigation rail is horizontally scrollable. Scrolling that rail
-      // (including browser/Playwright scroll-into-view before a tap) must not close
-      // the menu that the operator is trying to open. Page/content scroll still
-      // closes floating menus so their position cannot become stale.
-      const element = event.target instanceof Element ? event.target : null;
-      if (element && (element.closest?.('.nav-scroll') || element.closest?.('.ui-core-nav-dropdown'))) return;
-      setOpen(false);
+    let frame = 0;
+    const reposition = () => {
+      frame = 0;
+      const rect = hostRef.current?.getBoundingClientRect();
+      if (!rect || rect.bottom <= 0 || rect.top >= window.innerHeight) {setOpen(false);return;}
+      const width = Math.min(270, Math.max(190, rect.width + 72));
+      const left = Math.max(10, Math.min(window.innerWidth - width - 10, rect.left));
+      const top = Math.max(10, Math.min(window.innerHeight - 220, rect.bottom + 6));
+      setPosition(previous => previous.left===left&&previous.top===top&&previous.width===width ? previous : {left,top,width});
+    };
+    const schedulePosition = () => {if(!frame)frame=requestAnimationFrame(reposition);};
+    const onScroll = event => {
+      if(menuRef.current?.contains(event.target))return;
+      // Keep an opened menu attached to its trigger while a mobile tap scrolls it into view.
+      schedulePosition();
     };
     document.addEventListener('pointerdown', onPointerDown, true);
     document.addEventListener('keydown', onKeyDown);
-    window.addEventListener('resize', close, { passive: true });
+    window.addEventListener('resize', schedulePosition, { passive: true });
     window.addEventListener('scroll', onScroll, { passive: true, capture: true });
     return () => {
       document.removeEventListener('pointerdown', onPointerDown, true);
       document.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('resize', close);
+      window.removeEventListener('resize', schedulePosition);
+      cancelAnimationFrame(frame);
       window.removeEventListener('scroll', onScroll, true);
     };
   }, [open]);
@@ -85,7 +93,8 @@ function TamasyaDomainNavGroup(props) {
           t.jsx('span', { 'aria-hidden': 'true', className: 'text-[10px] opacity-70', children: open ? '⌃' : '⌄' })
         ]
       }),
-      open && t.jsx('div', {
+      open && t.jsx(TamasyaFloatingLayer, {children:t.jsx('div', {
+        ref:menuRef,
         className: 'ui-core-nav-dropdown tamasya-react-nav-dropdown',
         role: 'menu',
         'aria-label': label,
@@ -117,7 +126,7 @@ function TamasyaDomainNavGroup(props) {
           className: 'ui-core-nav-dropdown-item',
           children: member.label
         }, member.workspace ? 'workspace:' + member.workspace : member.route))
-      })
+      })})
     ]
   });
 

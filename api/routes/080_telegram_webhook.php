@@ -3846,7 +3846,7 @@ Shift telah ditutup, sesi server berstatus *CLOSED*, dan rekonsiliasi kas tersim
                             "staffName" => $loggedInStaff['name'] ?? null,
                             "role" => $loggedInStaff['role'] ?? null
                         ],
-                        "db" => getRoleScopedHotelData($pdo, $loggedInStaff)
+                        "db" => tamasyaTelegramSimulationHotelData($pdo, $loggedInStaff)
                     ]);
                     break;
                 }
@@ -6930,7 +6930,7 @@ Shift aktif diambil langsung dari database:
                         "staffName" => $loggedInStaff['name'] ?? null,
                         "role" => $loggedInStaff['role'] ?? null
                     ],
-                    "db" => getRoleScopedHotelData($pdo, $loggedInStaff)
+                    "db" => tamasyaTelegramSimulationHotelData($pdo, $loggedInStaff)
                 ]);
                 break;
             }

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import os from 'node:os';
+import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -69,4 +71,15 @@ test('deployment runbook documents authenticated readiness and separates it from
   assert.ok(deployReadme.includes('runtime'));
 });
 
+test('ZIP copies without executable bits still enter the bootstrap validator through bash',()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tamasya-mode-unit-'));try{
+  const file=path.join(dir,'bootstrap.sh');fs.writeFileSync(file,boundary,{mode:0o600});
+  const run=spawnSync('bash',[file,'unit-container','unsafe-db-name','unit-root','unit-user','unit-pass','SELECT,INSERT,UPDATE,DELETE','property','database_setup.sql'],{encoding:'utf8'});
+  assert.equal(run.status,64);assert.ok(run.stderr.includes('unsafe database identifier'));assert.ok(!run.stderr.includes('Permission denied'));
+  assert.ok(smoke.includes('bash tests/uat_prd/mysql-bootstrap-runtime-boundary.sh'));
+  assert.ok(workflow.includes('bash tests/uat_rc1/run_two_node_complete.sh'));
+  assert.ok(workflow.includes('bash tests/uat_rc1/run_hq_multi_property_complete.sh'));
+  assert.equal((boundary.match(/bash "\$READY"/g)||[]).length,2);
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
 console.log(`${passed} passed; 0 failed`);

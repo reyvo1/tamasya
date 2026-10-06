@@ -39,3 +39,8 @@ body:has(.tamasya-viewport-layer) :where(#tamasya-report-center-btn,#tamasya-ess
   .tamasya-viewport-layer .flex.gap-2{flex-wrap:wrap}
 }
 @media print{.tamasya-viewport-layer{display:none!important}}
+
+/* R8: dialog scroll/focus is immediate; floated menus live outside the nav rail. */
+html:has(.tamasya-viewport-layer){scroll-behavior:auto!important}
+.tamasya-viewport-layer,.tamasya-viewport-layer>*{scroll-behavior:auto!important;overflow-anchor:none;scroll-padding-block:16px}
+.tamasya-react-nav-dropdown{overscroll-behavior:contain}

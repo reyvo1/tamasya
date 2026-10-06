@@ -955,3 +955,8 @@ function tamasyaTelegramParseMoney(string $input): ?float {
 function tamasyaTelegramFormatAmount($amount): string {
     return rtrim(rtrim(number_format((float)$amount,2,',','.'),'0'),',');
 }
+
+/** Simulator response data follows the resolved Telegram identity, never the caller role. */
+function tamasyaTelegramSimulationHotelData($pdo, ?array $staff): ?array {
+    return $staff ? getRoleScopedHotelData($pdo, $staff) : null;
+}

@@ -508,6 +508,7 @@
  "tamasyaTelegramParseMoney": "050_integrations_telegram_mail.php",
  "tamasyaTelegramPlainText": "050_integrations_telegram_mail.php",
  "tamasyaTelegramResolveCallbackData": "050_integrations_telegram_mail.php",
+ "tamasyaTelegramSimulationHotelData": "050_integrations_telegram_mail.php",
  "tamasyaTelegramWebhookAuditSnapshot": "020_identity_access_audit.php",
  "tamasyaTouchTransactionAllocationMetadata": "026_financial_mutation_authority.php",
  "tamasyaTransactionAuditSnapshot": "020_identity_access_audit.php",

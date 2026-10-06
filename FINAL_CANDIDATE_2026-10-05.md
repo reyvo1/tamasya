@@ -1,4 +1,6 @@
-> Kandidat terbaru: `20261006-owner-enterprise-r7`. Lihat `OWNER_ENTERPRISE_FIX_2026-10-06.md` untuk akses baca Owner di Enterprise/Growth/Website, pemisahan tombol baca/perubahan, dan pembaruan cache. Semua perbaikan R2–R6 tetap disertakan.
+> Kandidat terbaru: `20261006-github-uat-r8`. Lihat `GITHUB_UAT_LOG_AUDIT_2026-10-06.md` untuk klasifikasi log GitHub, perbaikan simulator Telegram, eksekusi skrip tanpa executable bit, dropdown mobile, dan pemeriksaan geometri UI. Semua perbaikan R2–R7 tetap disertakan.
+
+> Riwayat R7: `20261006-owner-enterprise-r7`. Lihat `OWNER_ENTERPRISE_FIX_2026-10-06.md` untuk akses baca Owner di Enterprise/Growth/Website, pemisahan tombol baca/perubahan, dan pembaruan cache. Semua perbaikan R2–R6 tetap disertakan.
 
 > Riwayat R6: `20261006-layout-telegram-r6`. Lihat `UI_TELEGRAM_FIX_2026-10-06.md` untuk perapian kartu/dialog, audit shift dan pembayaran Telegram. Semua perbaikan R2–R5 tetap disertakan.
 

@@ -42,7 +42,7 @@ await test('compiled app-shared retains operation ID for retryable responses',()
  assert.match(source,/status===202\|\|tamasyaResponse\.status===408\|\|tamasyaResponse\.status===425\|\|tamasyaResponse\.status===429\|\|tamasyaResponse\.status>=500/);
 });
 await test('Enterprise RC1 build ID matches API, SW cache, registration and asset URLs',()=>{
- const build='20261006-owner-enterprise-r7';
+ const build='20261006-github-uat-r8';
  const release=fs.readFileSync(path.join(root,'release_contract.php'),'utf8');
  const guard=fs.readFileSync(path.join(root,'consistency_guard_support.php'),'utf8');
  const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
@@ -61,12 +61,19 @@ await test('modularization manifest matches every active router module',()=>{
  assert.deepEqual([...manifest.routeModules].sort(),[...routes].sort());
  for(const rel of routes) assert.ok(fs.existsSync(path.join(root,'api/routes',rel)),`missing route module ${rel}`);
 });
-await test('domain dropdown ignores horizontal nav rail scroll race',()=>{
+await test('domain dropdown stays open and anchored during mobile scroll; outside taps still close it',()=>{
  const shell=fs.readFileSync(path.join(root,'assets/chunks/app-shell.js'),'utf8');
- assert.ok(shell.includes("element.closest?.('.nav-scroll')"),'domain dropdown must ignore nav rail scroll');
- assert.ok(shell.includes("element.closest?.('.ui-core-nav-dropdown')"),'domain dropdown must ignore its own menu scroll');
- assert.ok(shell.includes("window.addEventListener('scroll', onScroll, { passive: true, capture: true })"),'guarded scroll handler missing');
- assert.ok(shell.includes("window.removeEventListener('scroll', onScroll, true)"),'guarded scroll cleanup missing');
+ const source=shell.slice(shell.indexOf('function TamasyaDomainNavGroup'),shell.indexOf('function TamasyaModuleDockNative'));
+ const events={},frames=[],openChanges=[],positions=[];let stateIndex=0,refIndex=0;
+ const trigger={getBoundingClientRect:()=>({width:130,left:75,top:225,bottom:260}),contains:x=>x==='trigger'};
+ const menu={contains:x=>x==='menu-child'};
+ const ctx=vm.createContext({document:{body:{dataset:{}},addEventListener:(n,fn)=>events[n]=fn,removeEventListener(){}},window:{innerWidth:390,innerHeight:844,addEventListener:(n,fn)=>events[n]=fn,removeEventListener(){}},requestAnimationFrame:fn=>{frames.push(fn);return frames.length;},cancelAnimationFrame(){},tamasyaVisibleDomainMembers:({members})=>members,TamasyaFloatingLayer:'body-portal',t:{jsx:(type,props)=>({type,props}),jsxs:(type,props)=>({type,props})},f:{useState(initial){const index=stateIndex++;const value=index===0?true:typeof initial==='function'?initial():initial;return [value,next=>{if(index===0)openChanges.push(next);if(index===1)positions.push(typeof next==='function'?next({left:0,top:0,width:220}):next)}]},useRef:()=>({current:refIndex++===0?trigger:menu}),useEffect:fn=>fn()}});
+ vm.runInContext(source+';globalThis.view=TamasyaDomainNavGroup({id:"operations",members:[{route:"operations",label:"Operasional"}],allowed:["operations"]});',ctx);
+ assert.equal(ctx.view.props.children[1].type,'body-portal');
+ events.scroll({target:'nav-rail'});frames.pop()();assert.equal(openChanges.length,0);assert.equal(positions[0].top,266);
+ events.pointerdown({target:'menu-child'});assert.equal(openChanges.length,0);
+ events.pointerdown({target:'outside'});assert.equal(openChanges[0],false);
+ assert.ok(shell.includes("window.removeEventListener('scroll', onScroll, true)"));
 });
 await test('Growth browser UAT waits for UI commit after API response',()=>{
  const spec=fs.readFileSync(path.join(root,'tests/uat_rc1/browser/rc1-ui.spec.mjs'),'utf8');
@@ -230,7 +237,7 @@ await test('Enterprise Full Complete UAT is additive, two-node, fail-closed and 
  assert.ok(posRouteFull.includes("throw new DomainException('Produk telah berubah pada perangkat lain. Muat ulang sebelum menyimpan.')"),'stale POS optimistic-concurrency writes must be HTTP 409 business conflicts, never 500');
  const posDatePolicy=fs.readFileSync(path.join(root,'assets/pos-business-date-policy.js'),'utf8');
  assert.ok(posClientFull.includes("businessDate: String(data.businessDate || '')")&&posClientFull.includes('syncSalesDateFilter(false);')&&posDatePolicy.includes('businessMonthStart')&&!posClientFull.includes('const today = new Date(); const first = new Date(today.getFullYear(), today.getMonth(), 1);'),'POS sales filters must follow the server-authoritative business date through explicit rollover policy rather than browser timezone');
- assert.ok(posHtmlFull.includes('pos-business-date-policy.js?v=20261006-owner-enterprise-r7')&&posHtmlFull.includes('pos-minibar.js?v=20261003-prd-r7-rollover'),'changed POS rollover policy/client must be cache-busted for deployed browsers');
+ assert.ok(posHtmlFull.includes('pos-business-date-policy.js?v=20261006-github-uat-r8')&&posHtmlFull.includes('pos-minibar.js?v=20261003-prd-r7-rollover'),'changed POS rollover policy/client must be cache-busted for deployed browsers');
  const browserFull=fs.readFileSync(path.join(root,'tests/uat_rc1/browser/rc1-ui.spec.mjs'),'utf8');
  assert.ok(browserFull.includes("toHaveValue(sale.saleDate)")&&browserFull.includes("inputValue())<=sale.saleDate"),'browser POS lifecycle must prove its report window contains the canonical sale business date');
  const telegramParityFull=fs.readFileSync(path.join(root,'tests/uat_rc1/scenario_telegram_parity_complete.py'),'utf8');

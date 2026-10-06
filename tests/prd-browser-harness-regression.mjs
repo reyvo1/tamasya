@@ -33,4 +33,10 @@ test('static page inventory thresholds remain enforced',()=>{
   assert.ok(browser.includes("['internal-memo.html',10]"));
   assert.ok(browser.includes('expect(controls.length).toBeGreaterThanOrEqual(minControls)'));
 });
+test('metric containment measures summary cards while audit hit testing waits for final scroll position',()=>{
+ assert.ok(browser.includes('.tamasya-finance-summary > .glass-card:visible .tamasya-metric-value'));
+ assert.ok(!browser.includes("'.glass-card:visible .tamasya-metric-value"));
+ assert.ok(browser.includes('await expect.poll(()=>heading.evaluate'));
+ assert.ok(browser.includes('document.elementFromPoint'));
+});
 console.log(`${passed} passed; 0 failed`);

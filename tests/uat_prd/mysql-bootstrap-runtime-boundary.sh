@@ -33,7 +33,7 @@ READY="$ROOT/tests/uat_prd/mysql-authenticated-ready.sh"
 # Schema/bootstrap authority is deliberately separate from application runtime.
 # Root here represents a disposable CI migration/DBA authority; its credential is
 # never mounted into the PHP-FPM, worker, realtime or HQ runtime containers.
-"$READY" "$CONTAINER" "$DB_NAME" root "$ROOT_PASS" 60 1
+bash "$READY" "$CONTAINER" "$DB_NAME" root "$ROOT_PASS" 60 1
 
 for schema in "${SCHEMA_FILES[@]}"; do
   echo "Applying schema as isolated migration authority: $schema"
@@ -126,7 +126,7 @@ docker exec -e MYSQL_PWD="$ROOT_PASS" "$CONTAINER" \
     GRANT ${RUNTIME_PRIVS} ON \`${DB_NAME}\`.* TO '${RUNTIME_USER}'@'%';
   "
 
-"$READY" "$CONTAINER" "$DB_NAME" "$RUNTIME_USER" "$RUNTIME_PASS" 30 1
+bash "$READY" "$CONTAINER" "$DB_NAME" "$RUNTIME_USER" "$RUNTIME_PASS" 30 1
 
 if docker exec -e MYSQL_PWD=definitely-wrong "$CONTAINER" \
     mysql --protocol=TCP -h127.0.0.1 --connect-timeout=3 -u"$RUNTIME_USER" "$DB_NAME" -e 'SELECT 1' >/dev/null 2>&1; then
