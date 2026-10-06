@@ -316,9 +316,17 @@ function tamasyaNodeSyncAllowedAction(string $action, array $input, string $meth
         'ota-disbursements','booking-audit-correction','transactions','sync','attendance',
         'salary-slips','employee-self-service','staff-savings','inventory','inventory-maintenance','operations-center',
         'pos-category-save','pos-product-save','pos-stock-adjust','pos-sale-create','pos-sale-void',
-        'chat-messages','notifications-read','growth-suite','enterprise-suite'
+        'chat-messages','notifications-read','growth-suite','enterprise-suite','internal-memos'
     ];
     if (!in_array($action, $allowed, true)) return false;
+    if ($action === 'internal-memos') {
+        // Memo writes use the same signed forwarding, receipt and fencing path
+        // as other business data; only commands implemented by the route qualify.
+        $method = strtoupper($method);
+        if (!in_array($method, ['POST','PUT'], true)) return false;
+        $command = strtolower(trim((string)($input['command'] ?? ($method === 'POST' ? 'create' : 'update'))));
+        return in_array($command, ['create','update','archive','restore'], true);
+    }
     if ($action !== 'operations-center') return true;
     $command = strtolower(trim((string)($input['command'] ?? '')));
     $allowedCommands = [

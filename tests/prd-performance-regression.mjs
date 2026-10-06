@@ -29,7 +29,7 @@ const lazyAssets=[
 
 test('optional route addons are absent from eager PMS shell',()=>{
   for(const rel of lazyAssets) assert.ok(!index.includes(`./${rel}`),`eager shell still loads ${rel}`);
-  assert.ok(index.includes('./assets/runtime-addon-loader.js?v=20261006-github-uat-r8'),'runtime addon loader missing');
+  assert.ok(index.includes('./assets/runtime-addon-loader.js?v=20261007-hybrid-identity-r9'),'runtime addon loader missing');
 });
 
 test('runtime loader owns every removed optional addon',()=>{
@@ -92,7 +92,7 @@ test('initial static module graph stays below shared-hosting budget',()=>{
 
 test('service worker keeps optional route addons runtime-cached instead of install-precache',()=>{
   for(const rel of lazyAssets) assert.ok(!sw.includes(`"./${rel}`),`SW install still precaches optional ${rel}`);
-  assert.ok(sw.includes('./assets/runtime-addon-loader.js?v=20261006-github-uat-r8'),'SW must precache the tiny loader needed by offline core');
+  assert.ok(sw.includes('./assets/runtime-addon-loader.js?v=20261007-hybrid-identity-r9'),'SW must precache the tiny loader needed by offline core');
   assert.ok(sw.includes('STATIC_CACHE_DESTINATIONS')&&sw.includes('stale-while-revalidate'),'static runtime cache contract must remain available');
 });
 

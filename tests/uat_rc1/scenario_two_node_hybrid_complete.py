@@ -68,9 +68,13 @@ if args.phase=='online-forward':
     check('Standby write is executed by active Primary through signed forwarding',s==200 and b.get('success') is not False and h.get('X-Tamasya-Execution-Node')=='active-primary',{'status':s,'body':b,'execution':h.get('X-Tamasya-Execution-Node')})
     check('Forwarded write exists on Primary database only before mirror',len(rows(A_DB,A_DB_NAME,code))==1 and len(rows(B_DB,B_DB_NAME,code))==0,{'a':rows(A_DB,A_DB_NAME,code),'b':rows(B_DB,B_DB_NAME,code)})
 
-    s,b,h=http(B_URL,'internal-memos','POST',{'command':'create','title':'Hybrid memo '+run,'body':'Memo must survive both Primary directions','category':'finance','priority':'high'},tb,'efc2_memo_'+run,'nodeB0000000001')
+    memo_payload={'command':'create','title':'Hybrid memo '+run,'body':'Memo must survive both Primary directions','category':'finance','priority':'high'}
+    s,b,h=http(B_URL,'internal-memos','POST',memo_payload,tb,'efc2_memo_'+run,'nodeB0000000001')
     state['memoId']=(b.get('data') or {}).get('id')
-    check('Standby memo creation forwards to active Primary',s==200 and bool(state['memoId']) and h.get('X-Tamasya-Execution-Node')=='active-primary',{'status':s,'id':state['memoId']})
+    check('Standby memo creation forwards to active Primary',s==200 and bool(state['memoId']) and h.get('X-Tamasya-Execution-Node')=='active-primary',{'status':s,'id':state['memoId'],'body':b,'execution':h.get('X-Tamasya-Execution-Node')})
+    replay_s,replay_b,replay_h=http(B_URL,'internal-memos','POST',memo_payload,tb,'efc2_memo_'+run,'nodeB0000000001')
+    memo_rows=db(A_DB,A_DB_NAME,'SELECT id FROM growth_internal_memos WHERE title=?',[memo_payload['title']])
+    check('Forwarded memo retry reuses receipt without duplicate creation',replay_s==200 and bool(state['memoId']) and (replay_b.get('data') or {}).get('id')==state['memoId'] and len(memo_rows)==1 and replay_h.get('X-Tamasya-Execution-Node')=='active-primary',{'status':replay_s,'body':replay_b,'rows':memo_rows})
 
 elif args.phase=='primary-outage':
     tb=login(B_URL,'nodeB0000000002')
@@ -80,6 +84,10 @@ elif args.phase=='primary-outage':
     after=int(db(B_DB,B_DB_NAME,'SELECT COUNT(*) n FROM inventory')[0]['n'])
     check('Standby refuses business mutation while Primary is unreachable',s==503 and isinstance(b,dict) and b.get('success') is False,{'status':s,'body':b})
     check('Primary outage never falls back to local Standby write',before==after and len(rows(B_DB,B_DB_NAME,code))==0,{'before':before,'after':after,'row':rows(B_DB,B_DB_NAME,code)})
+    memo_before=int(db(B_DB,B_DB_NAME,'SELECT COUNT(*) n FROM growth_internal_memos')[0]['n'])
+    memo_s,memo_b,_=http(B_URL,'internal-memos','POST',{'command':'create','title':'Must not write memo while Primary is down '+run,'body':'Fenced standby must remain read-only'},tb,'efc2_offline_memo_'+run,'nodeB0000000002')
+    memo_after=int(db(B_DB,B_DB_NAME,'SELECT COUNT(*) n FROM growth_internal_memos')[0]['n'])
+    check('Primary outage refuses memo forwarding without local fallback',memo_s==503 and memo_b.get('success') is False and memo_before==memo_after,{'status':memo_s,'body':memo_b,'before':memo_before,'after':memo_after})
 
 elif args.phase=='planned-switch':
     ta=login(A_URL,'nodeA0000000003');tb=login(B_URL,'nodeB0000000003')
@@ -96,7 +104,7 @@ elif args.phase=='planned-switch':
     memo_b=db(B_DB,B_DB_NAME,'SELECT id,title,body,status FROM growth_internal_memos WHERE id=?',[mid])
     check('Memo created on A survives mirror and promotion of B',bool(mid) and memo_a==memo_b and len(memo_b)==1,{'A':memo_a,'B':memo_b})
     s,b,h=http(A_URL,'internal-memos','PUT',{'command':'archive','id':mid},ta,'efc2_archive_memo_'+run,'nodeA0000000003')
-    check('Old Primary forwards memo archive to new Primary',s==200 and (b.get('data') or {}).get('status')=='archived' and h.get('X-Tamasya-Execution-Node')=='active-primary',{'status':s,'execution':h.get('X-Tamasya-Execution-Node')})
+    check('Old Primary forwards memo archive to new Primary',s==200 and (b.get('data') or {}).get('status')=='archived' and h.get('X-Tamasya-Execution-Node')=='active-primary',{'status':s,'body':b,'execution':h.get('X-Tamasya-Execution-Node')})
     code='EFC2-REV-'+run[-6:].upper();state['reverseCode']=code
     s,b,h=http(A_URL,'inventory','POST',{'code':code,'name':'Reverse Forward Asset','category':'EFC Hybrid','location':'Primary B','quantity':1,'unit':'unit','condition_status':'baik','price':0},ta,'efc2_reverse_'+run,'nodeA0000000003')
     check('Old Primary now forwards mutation to newly promoted B',s==200 and b.get('success') is not False and h.get('X-Tamasya-Execution-Node')=='active-primary',{'status':s,'body':b,'execution':h.get('X-Tamasya-Execution-Node')})

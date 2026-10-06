@@ -12,6 +12,7 @@ require $root.'/api/modules/finance/110_daily_summary.php';
 require $root.'/database_tls.php';
 require $root.'/growth_activation_profile.php';
 require $root.'/node_sync_support.php';
+require $root.'/node_cluster_support.php';
 require $root.'/api/modules/growth_enterprise_locked/105_growth_suite.php';
 require $root.'/api/modules/growth_enterprise_locked/107_enterprise_completion.php';
 require $root.'/api/modules/comms/050_integrations_telegram_mail.php';
@@ -79,6 +80,22 @@ for($i=0;$i<1000;$i++)$tx=tamasyaEnrichTransactionCatalogIdentity($pdo,['type'=>
 hardeningCheck($pdo->prepares===2&&$tx['categoryId']==='room','Repeated legacy names reuse database-collation lookup');
 $map=tamasyaNodeSnapshotTableMap();
 hardeningCheck(($map['growth_internal_memos']['pk']??[])===['id'],'Internal memos included in hybrid canonical snapshot');
+$GLOBALS['tamasya_node_effective_role']='local_backup';
+$GLOBALS['tamasya_cluster_state']=['transfer_state'=>'active'];
+foreach(['create','update','archive','restore'] as $memoCommand){
+    hardeningCheck(tamasyaNodeSyncAllowedAction('internal-memos',['command'=>$memoCommand],'POST')&&tamasyaNodeSyncAllowedAction('internal-memos',['command'=>$memoCommand],'PUT')&&tamasyaLocalNodeBlockedAction('internal-memos',['command'=>$memoCommand],'PUT')===null,'Standby permits signed memo forwarding: '.$memoCommand);
+}
+hardeningCheck(tamasyaNodeSyncAllowedAction('internal-memos',[],'POST')&&tamasyaNodeSyncAllowedAction('internal-memos',[],'PUT'),'Memo default create and update commands match route contract');
+foreach(['GET','PATCH','DELETE'] as $memoMethod)hardeningCheck(!tamasyaNodeSyncAllowedAction('internal-memos',['command'=>'archive'],$memoMethod),'Unsupported memo method cannot enter mutation replay: '.$memoMethod);
+hardeningCheck(tamasyaLocalNodeBlockedAction('internal-memos',['command'=>'purge'],'POST')!==null,'Unknown memo command remains blocked on Standby');
+hardeningCheck(tamasyaLocalNodeBlockedAction('config',[],'POST')!==null&&tamasyaLocalNodeBlockedAction('staff',[],'POST')!==null,'Memo forwarding does not open configuration or staff writes');
+$clusterEnabledBefore=getenv('NODE_CLUSTER_ENABLED');putenv('NODE_CLUSTER_ENABLED=1');
+foreach(['draining','split_brain'] as $memoTransfer){
+    $GLOBALS['tamasya_cluster_state']['transfer_state']=$memoTransfer;
+    hardeningCheck(tamasyaLocalNodeBlockedAction('internal-memos',['command'=>'create'],'POST')!==null,'Memo respects cluster fencing: '.$memoTransfer);
+}
+$clusterEnabledBefore===false?putenv('NODE_CLUSTER_ENABLED'):putenv('NODE_CLUSTER_ENABLED='.$clusterEnabledBefore);
+unset($GLOBALS['tamasya_node_effective_role'],$GLOBALS['tamasya_cluster_state']);
 hardeningCheck(in_array('growth_internal_memos',tamasyaEnterpriseSchemaTables(),true),'Enterprise readiness includes memo schema');
 $original="DB_PASSWORD=private\nTAMASYA_NODE_ID=local-node\nTAMASYA_GROWTH_SUITE_ENABLED=0\nexport TAMASYA_GROWTH_SUITE_ENABLED=0\nNODE_CLUSTER_ENABLED=1\n";
 $env=tamasyaGrowthProfileEnvironment($original);

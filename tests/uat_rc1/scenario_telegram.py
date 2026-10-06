@@ -28,6 +28,8 @@ db('UPDATE staff SET telegram_chat_id=?,telegram_state=NULL,telegram_context=NUL
 # Unknown identity may not become admin by forging a browser role field.
 status,unknown=request('telegram-bot','POST',{'text':'/menu','chatId':999001999,'role':'admin'},'sim_tg_unknown')
 check('Telegram forged role cannot bind an unknown identity',status==200 and unknown.get('success') is True and unknown.get('simulationIdentity',{}).get('bound') is False and unknown.get('simulationIdentity',{}).get('role') is None and unknown.get('db') is None,{'status':status,'identity':unknown.get('simulationIdentity'),'error':unknown.get('error'),'dbPresent':unknown.get('db') is not None})
+status,unknown_callback=request('telegram-callback','POST',{'callbackData':'main_menu','chatId':999001999,'messageId':'uat-unknown-menu','role':'admin'},'sim_tg_unknown_callback')
+check('Telegram unknown callback remains unbound without hotel projection',status==200 and unknown_callback.get('success') is True and unknown_callback.get('simulationIdentity',{}).get('bound') is False and unknown_callback.get('simulationIdentity',{}).get('role') is None and unknown_callback.get('db') is None,{'status':status,'identity':unknown_callback.get('simulationIdentity'),'error':unknown_callback.get('error'),'dbPresent':unknown_callback.get('db') is not None})
 
 for cmd in ['/start','/menu','/status_kamar','/laporan','/help']:
     _,body=sim_text('command_'+cmd.strip('/').replace('/','_'),cmd)

@@ -1,13 +1,13 @@
 // TAMASYA V137 canonical service worker. Fresh multi-property baseline.
 const APP_SCOPE = new URL(self.registration.scope);
 const CACHE_PREFIX = `tamasya-cache-${encodeURIComponent(APP_SCOPE.pathname)}-`;
-const CACHE_NAME = `${CACHE_PREFIX}20261006-github-uat-r8`;
+const CACHE_NAME = `${CACHE_PREFIX}20261007-hybrid-identity-r9`;
 const matchAppCache = (request) => caches.open(CACHE_NAME).then((cache) => cache.match(request));
 const STATIC_CACHE_DESTINATIONS = new Set(["script", "style", "image", "font", "manifest", "worker"]);
 
 const ASSETS_TO_CACHE = [
-  "./assets/owner-readonly-policy.js?v=20261006-github-uat-r8",
-  "./assets/owner-readonly.css?v=20261006-github-uat-r8",
+  "./assets/owner-readonly-policy.js?v=20261007-hybrid-identity-r9",
+  "./assets/owner-readonly.css?v=20261007-hybrid-identity-r9",
   "./",
   "./index.html",
   "./icon.svg",
@@ -20,42 +20,42 @@ const ASSETS_TO_CACHE = [
   "./property-setup.html",
   "./assets/notification-settings-addon.js?v=20260814-perf-config1",
   "./assets/api-operation-guard.js?v=20260914-r4-3-operation-retry",
-  "./assets/canonical-business-policy.js?v=20261006-github-uat-r8",
+  "./assets/canonical-business-policy.js?v=20261007-hybrid-identity-r9",
   "./assets/finance-category-usage-picker.js?v=20260817-r7-setup-finance-mapping-ux-fix20",
-  "./assets/runtime-addon-loader.js?v=20261006-github-uat-r8",
-  "./assets/app-core.js?v=20261006-github-uat-r8",
-  "./assets/sw-register.js?v=20261006-github-uat-r8",
-  "./assets/navigation-registry.js?v=20261006-github-uat-r8",
-  "./assets/chunks/vendor-react.js?v=20261006-github-uat-r8",
-  "./assets/chunks/app-shared.js?v=20261006-github-uat-r8",
-  "./assets/chunks/app-shell.js?v=20261006-github-uat-r8",
-  "./assets/chunks/feature-shared.js?v=20261006-github-uat-r8",
-  "./assets/chunks/dashboard.js?v=20261006-github-uat-r8",
-  "./assets/chunks/rooms.js?v=20261006-github-uat-r8",
+  "./assets/runtime-addon-loader.js?v=20261007-hybrid-identity-r9",
+  "./assets/app-core.js?v=20261007-hybrid-identity-r9",
+  "./assets/sw-register.js?v=20261007-hybrid-identity-r9",
+  "./assets/navigation-registry.js?v=20261007-hybrid-identity-r9",
+  "./assets/chunks/vendor-react.js?v=20261007-hybrid-identity-r9",
+  "./assets/chunks/app-shared.js?v=20261007-hybrid-identity-r9",
+  "./assets/chunks/app-shell.js?v=20261007-hybrid-identity-r9",
+  "./assets/chunks/feature-shared.js?v=20261007-hybrid-identity-r9",
+  "./assets/chunks/dashboard.js?v=20261007-hybrid-identity-r9",
+  "./assets/chunks/rooms.js?v=20261007-hybrid-identity-r9",
   // PERF(offline-ops-1): chunk modul jarang-dipakai tidak lagi diprecache saat
   // install (menghemat ~410 KB pada first load). Semua chunk tetap di-cache saat
   // pertama kali dibuka lewat runtime cache di bawah sehingga offline tetap bekerja.
-  "./assets/property-branding.js?v=20261006-github-uat-r8",
-  "./assets/property-setup.css?v=20261006-github-uat-r8",
+  "./assets/property-branding.js?v=20261007-hybrid-identity-r9",
+  "./assets/property-setup.css?v=20261007-hybrid-identity-r9",
   "./assets/property-setup.js?v=20260818-r7-booking-draft-room-scope-fix27",
   "./assets/property-setup-guard.js?v=20260810-v137",
   "./assets/app-core.css?v=20260829-fix37-scrollbar-clip",
-  "./assets/pos-minibar.css?v=20261006-github-uat-r8",
-  "./assets/pos-business-date-policy.js?v=20261006-github-uat-r8",
+  "./assets/pos-minibar.css?v=20261007-hybrid-identity-r9",
+  "./assets/pos-business-date-policy.js?v=20261007-hybrid-identity-r9",
   "./assets/pos-minibar.js?v=20261003-prd-r7-rollover",
-  "./assets/internal-memo.css?v=20261006-github-uat-r8",
+  "./assets/internal-memo.css?v=20261007-hybrid-identity-r9",
   "./assets/internal-memo.js",
   "./assets/master-data-workspace.js?v=20260821-audit16-prelock-observer-scope",
-  "./assets/ui-core.js?v=20261006-github-uat-r8",
-  "./assets/flexible-maintenance-addon.js?v=20261006-github-uat-r8",
+  "./assets/ui-core.js?v=20261007-hybrid-identity-r9",
+  "./assets/flexible-maintenance-addon.js?v=20261007-hybrid-identity-r9",
   "./assets/date-display-id.js?v=20260829-fix39-refsafe",
-  "./assets/ui-core.css?v=20261006-github-uat-r8",
-  "./assets/responsive-polish.css?v=20261006-github-uat-r8",
-  "./assets/chunks/viewport-layer.js?v=20261006-github-uat-r8",
-  "./assets/growth-suite.css?v=20261006-github-uat-r8",
-  "./assets/growth-suite.js?v=20261006-github-uat-r8",
-  "./assets/enterprise-suite.js?v=20261006-github-uat-r8",
-  "./assets/multi-property-foundation.css?v=20261006-github-uat-r8",
+  "./assets/ui-core.css?v=20261007-hybrid-identity-r9",
+  "./assets/responsive-polish.css?v=20261007-hybrid-identity-r9",
+  "./assets/chunks/viewport-layer.js?v=20261007-hybrid-identity-r9",
+  "./assets/growth-suite.css?v=20261007-hybrid-identity-r9",
+  "./assets/growth-suite.js?v=20261007-hybrid-identity-r9",
+  "./assets/enterprise-suite.js?v=20261007-hybrid-identity-r9",
+  "./assets/multi-property-foundation.css?v=20261007-hybrid-identity-r9",
   "./assets/multi-property-foundation.js?v=20260812-final12-video1"
 ];
 

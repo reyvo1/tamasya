@@ -5,6 +5,7 @@ define('TAMASYA_API_ENTRY',true);
 require dirname(__DIR__).'/api/modules/comms/050_integrations_telegram_mail.php';
 require dirname(__DIR__).'/api/modules/finance/018_canonical_business_policy.php';
 require dirname(__DIR__).'/api/modules/hr_staff/058_employee_self_service.php';
+require dirname(__DIR__).'/api/modules/hr_staff/020_identity_access_audit.php';
 class TelegramDuplicateOperationException extends RuntimeException {}
 $GLOBALS['chargeCalls']=[];
 function applyCanonicalTelegramBookingChargeWorkflow($pdo,$actor,array $payload,string $operationId){
@@ -76,6 +77,34 @@ $GLOBALS['simulationProjectionCalls']=0;
 function getRoleScopedHotelData($pdo,$staff){$GLOBALS['simulationProjectionCalls']++;return ['currentUser'=>['id'=>$staff['id'],'role'=>$staff['role']]];}
 tgCheck(tamasyaTelegramSimulationHotelData($db,null)===null&&$GLOBALS['simulationProjectionCalls']===0,'Unbound Telegram simulator never reads hotel data or calls typed session projection');
 tgCheck(tamasyaTelegramSimulationHotelData($db,[])===null&&$GLOBALS['simulationProjectionCalls']===0,'Empty Telegram identity cannot read hotel data');
+// Execute the real identity lookup and projection together, including PDO's
+// false result. Testing a hand-written null alone missed the R8 failure.
+final class TelegramIdentityFixture extends PDO {
+    public int $queries=0;
+    public function __construct(public array|false $binding=false,public array $legacy=[]){}
+    public function prepare(string $query,array $options=[]):PDOStatement|false{
+        $this->queries++;
+        return new TelegramIdentityStatement(str_contains($query,'telegram_bindings')?($this->binding?[$this->binding]:[]):$this->legacy);
+    }
+}
+final class TelegramIdentityStatement extends PDOStatement {
+    public function __construct(private array $rows){}
+    public function execute(?array $params=null):bool{return true;}
+    public function fetch(int $mode=PDO::FETCH_DEFAULT,int $cursorOrientation=PDO::FETCH_ORI_NEXT,int $cursorOffset=0):mixed{return $this->rows[0]??false;}
+    public function fetchAll(int $mode=PDO::FETCH_DEFAULT,mixed ...$args):array{return $this->rows;}
+}
+$identityDb=new TelegramIdentityFixture();
+tgCheck(findActiveStaffByTelegramUserId($identityDb,'')===null&&$identityDb->queries===0,'Empty Telegram ID resolves to null without database lookup');
+$unknownStaff=findActiveStaffByTelegramUserId($identityDb,'999001999');
+tgCheck($unknownStaff===null&&$identityDb->queries===2,'Missing binding and legacy account resolve PDO false to null');
+tgCheck(tamasyaTelegramSimulationHotelData($identityDb,$unknownStaff)===null&&$GLOBALS['simulationProjectionCalls']===0,'Real unknown identity passes typed projection without exposing hotel data');
+$duplicateDb=new TelegramIdentityFixture(false,[['id'=>'a'],['id'=>'b']]);
+tgCheck(findActiveStaffByTelegramUserId($duplicateDb,'900001999')===null,'Duplicate legacy Telegram ID remains unbound');
+$verifiedStaff=['id'=>'bound-owner','role'=>'owner'];
+$verifiedDb=new TelegramIdentityFixture($verifiedStaff,[['id'=>'legacy-admin','role'=>'admin']]);
+tgCheck(findActiveStaffByTelegramUserId($verifiedDb,'900001001')===$verifiedStaff&&$verifiedDb->queries===1,'Verified binding keeps real role and wins over legacy identity');
+$legacyStaff=['id'=>'legacy-operator','role'=>'receptionist'];
+tgCheck(findActiveStaffByTelegramUserId(new TelegramIdentityFixture(false,[$legacyStaff]),'900001002')===$legacyStaff,'Unique active legacy binding remains compatible');
 $simData=tamasyaTelegramSimulationHotelData($db,['id'=>'bound-operator','role'=>'receptionist']);
 tgCheck($simData['currentUser']['role']==='receptionist'&&$GLOBALS['simulationProjectionCalls']===1,'Bound simulator reads the resolved staff scope, preserving its real role');
 $webhook=file_get_contents(dirname(__DIR__).'/api/routes/080_telegram_webhook.php');

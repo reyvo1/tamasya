@@ -2085,15 +2085,17 @@ function unbindTelegramIdentity($pdo, $staffId, $telegramUserId = null) {
 }
 
 /** Source line 2531: findActiveStaffByTelegramUserId */
-function findActiveStaffByTelegramUserId($pdo, $telegramUserId) {
+function findActiveStaffByTelegramUserId($pdo, $telegramUserId): ?array {
+    // Unbound identities use null consistently, including missing PDO rows and
+    // rejected legacy duplicates, so nullable authorization/projection APIs agree.
     $telegramUserId = trim((string)$telegramUserId);
-    if ($telegramUserId === '') return false;
+    if ($telegramUserId === '') return null;
     $stmt = $pdo->prepare("SELECT s.* FROM telegram_bindings tb
         JOIN staff s ON s.id=tb.staff_id
         WHERE tb.telegram_user_id=? AND tb.status='active' AND s.status='active'
         ORDER BY tb.verified_at DESC LIMIT 1");
     $stmt->execute([$telegramUserId]);
-    $staff = $stmt->fetch();
+    $staff = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($staff) return $staff;
     // Kompatibilitas data lama hanya berlaku bila ID tersebut unik. Duplikasi
     // legacy ditolak agar satu Telegram User ID tidak pernah memilih akun secara acak.
@@ -2102,7 +2104,7 @@ function findActiveStaffByTelegramUserId($pdo, $telegramUserId) {
     $legacyRows = $legacy->fetchAll(PDO::FETCH_ASSOC) ?: [];
     if (count($legacyRows) !== 1) {
         if (count($legacyRows) > 1) error_log('[Telegram Auth] Duplicate legacy Telegram User ID rejected: ' . hash('sha256',$telegramUserId));
-        return false;
+        return null;
     }
     return $legacyRows[0];
 }
