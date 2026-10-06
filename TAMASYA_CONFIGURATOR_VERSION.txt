@@ -1,0 +1,5 @@
+TAMASYA Configurator FINAL12-PROD4.2 FINAL-R9 PRIVATE STORAGE FIX
+Build date: 2026-08-14
+UI build: UI-FINAL-R9_PRIVATE_STORAGE_FIX_20260814
+Unified Web + CLI fresh commissioning, durable state machine, freshness policy,
+auth/bootstrap fixes, 429 countdown, strict private-path guard, and verified private storage creation before Apply/Lock.

@@ -1,0 +1,258 @@
+PRODUCT REQUIREMENTS DOCUMENT
+TAMASYA Hybrid Modular Architecture
+Roadmap PHP Core → Multi-Property Enterprise → VPS/SaaS Scale
+Tujuan: mempertahankan transactional authority yang sudah matang, memperkuat isolasi cabang dan sinkronisasi hybrid, lalu menambah kemampuan realtime/worker secara bertahap tanpa rewrite total.
+Keputusan Arsitektur UtamaPHP tetap menjadi core PMS/financial transaction authority. Node.js/Go/worker hanya menjadi service pendamping untuk realtime, queue, sync, dan pekerjaan panjang bila dibutuhkan. Shared hosting tetap didukung; cron, Redis, worker, dan VPS bersifat peningkatan bertahap, bukan dependency wajib.
+Atribut | Nilai
+Dokumen | PRD Arsitektur & Scaling TAMASYA
+Versi | 1.0
+Tanggal | 15 September 2026
+Status | Baseline Perencanaan / Implementation Roadmap
+Target deployment | Shared Hosting → VPS → Multi-node SaaS
+Prinsip | No forced rewrite • Financial safety first • Hybrid online/offline • Multi-property isolation
+Daftar Isi
+1. Ringkasan Eksekutif
+2. Latar Belakang & Masalah yang Diselesaikan
+3. Tujuan, Non-Goal, dan Prinsip Desain
+4. Arsitektur Target
+5. Multi-Property & Enterprise Isolation
+6. Transactional Authority & Accounting Safety
+7. Hybrid Online/Offline & Dua Server
+8. Async, Realtime, Queue, dan Worker
+9. Report, Telegram, dan Channel Parity
+10. Security, Audit, dan Consistency Guard
+11. Performance & Scaling Strategy
+12. Deployment Profiles
+13. Data & API Contract
+14. Roadmap Implementasi Bertahap
+15. UAT, Release Gate, dan Acceptance Criteria
+16. Risiko & Mitigasi
+17. Keputusan Akhir / Definition of Done
+1. Ringkasan Eksekutif
+TAMASYA tidak perlu direwrite dari PHP untuk menjadi PMS hotel multi-cabang atau Enterprise. Strategi yang dipilih adalah mempertahankan PHP sebagai sumber kebenaran transaksi hotel dan keuangan, lalu memisahkan workload yang memang lebih cocok asynchronous atau realtime ke service pendamping secara opsional. Desain harus tetap berjalan pada shared hosting murah hari ini dan dapat naik kelas ke VPS atau SaaS tanpa memutus logika bisnis yang sudah terbentuk.
+PHP Core/API tetap menangani reservasi, check-in/out, transaksi, Backfill, Split Payment, pajak, jurnal, shift, payroll, master data, report snapshot, dan otorisasi bisnis.
+PWA/offline tetap memakai operation ID, queue lokal, ACK/replay, revision, tombstone, dan conflict handling.
+Primary/Standby tetap single-writer dengan fencing/lease; service tambahan tidak boleh menjadi financial writer kedua.
+Enterprise/multi-property membaca agregasi lintas cabang melalui kontrak data terkontrol, bukan query liar antar-property.
+Node.js/Go/worker bersifat opsional untuk WebSocket, queue, device/IoT, Telegram worker, sync agent, dan job berat.
+Cron tidak wajib. Scheduler tetap fleksibel: realtime/event-driven + opportunistic run-if-due + cron/worker bila tersedia.
+2. Latar Belakang & Masalah yang Diselesaikan
+TAMASYA sudah mempunyai domain yang sensitif terhadap uang dan state: Front Office, Keuangan, Pajak, Akuntansi, Shift, Backfill, POS, Telegram, offline replay, laporan, serta dua-server. Rewrite total akan memaksa seluruh invariant ini dibuktikan ulang. Risiko terbesar bukan bahasa pemrograman, melainkan duplikasi authority, data lintas cabang bocor, race condition, dan ketidaksinkronan antar-channel.
+Masalah | Dampak bila tidak ditangani | Arah solusi
+Cabang bertambah | Query dan hak akses berpotensi bocor lintas property | Mandatory property/company scope + policy enforcement
+Traffic meningkat | Full snapshot/polling membebani shared hosting | Revision-driven reads, pagination, cache/read-model, worker bertahap
+Offline/dua server | Double write, replay, conflict | Operation ID, receipts, fencing, single-writer, deterministic replay
+Enterprise consolidation | Angka pusat berbeda dengan property | Canonical snapshot + consolidated read model + reconciliation
+Realtime/IoT | Request PHP panjang / koneksi persisten | Optional Node/Go realtime and worker services
+Deployment beragam | Fitur bergantung cron/VPS | Capability-based optional services; core tetap berjalan tanpa cron
+3. Tujuan, Non-Goal, dan Prinsip Desain
+3.1 Tujuan
+Mendukung hotel tunggal sampai grup hotel multi-property tanpa mengganti financial core.
+Menjaga Web, Telegram, offline, POS, dan Enterprise menghasilkan state bisnis yang sama.
+Memungkinkan shared hosting, VPS, dan cluster menggunakan codebase/kontrak bisnis yang sama.
+Menaikkan performa melalui optimasi read path dan workload separation tanpa mengorbankan safety.
+Membuat failure satu property/node tidak mengkorup property/node lain.
+Mempunyai release gate, observability, reconciliation, dan disaster recovery yang dapat diaudit.
+3.2 Non-Goal
+Rewrite seluruh aplikasi ke Node.js/Go/Java.
+Memecah semua modul menjadi microservice sejak awal.
+Membuat Redis, cron, message broker, atau Kubernetes menjadi dependency wajib.
+Mengizinkan worker/realtime service menulis financial ledger di luar PHP canonical authority.
+Menggabungkan semua database property tanpa isolation policy.
+Prinsip IntiScale by separation, not by rewrite. Tambahkan service hanya bila ada bottleneck atau kebutuhan capability yang jelas. Financial mutation tetap melalui satu authority dan satu kontrak idempotency.
+4. Arsitektur Target
+Target logical architecture:
+CLIENTS / CHANNELSWeb Admin • Mobile/PWA • Telegram • POS • Public Website • API                         │                         ▼                 PHP CORE / API       PMS • Finance • Tax • Accounting • RBAC       Report Snapshot • Consistency Guard                         │          ┌──────────────┼───────────────┐          ▼              ▼               ▼       MySQL          Outbox/Queue     Optional Services  Primary/Standby     + Receipts       Node/Go Workers          │              │          Realtime • Sync • IoT          └──────────────┴───────────────┘                         │                 Enterprise Read Model
+4.1 Boundary Authority
+Komponen | Boleh melakukan | Tidak boleh melakukan
+PHP Core | Validasi bisnis; financial mutation; tax; journal; booking/room state; RBAC | Mendelegasikan kebenaran finansial ke worker tanpa receipt
+Node/Go Worker | Consume job; realtime push; device sync; rendering/ETL; retries | Menulis ledger/transaksi canonical secara independen
+Redis (opsional) | Cache, lock sementara, queue, pub/sub | Menjadi source of truth transaksi
+Enterprise Read Model | Agregasi dan analytics lintas property | Mengubah transaksi property tanpa workflow resmi
+PWA Offline | Queue mutation dengan operation ID; local projection | Menganggap local projection sebagai final sebelum ACK
+5. Multi-Property & Enterprise Isolation
+5.1 Model Organisasi
+Company/Group menjadi parent organisasi.
+Property/Hotel menjadi unit operasional dan financial scope utama.
+User dapat memiliki role platform, company, atau property dengan scope eksplisit.
+Enterprise dashboard hanya mengagregasi property yang memang berada di scope user tersebut.
+Aturan IsolasiSetiap entity yang bersifat tenant/property-scoped wajib dapat ditelusuri ke company_id/property_id (langsung atau melalui foreign-key/authority chain). Query yang tidak memiliki scope eksplisit untuk data property dianggap unsafe.
+5.2 Role Target
+Role | Scope | Contoh hak
+Super Admin Platform | Seluruh platform | Tenant/property lifecycle, health, billing platform, support
+Company / Enterprise Admin | Satu group/company | Consolidated report, policy group, cross-property analytics
+Property Admin / Manager | Satu atau beberapa property | PMS, shift, finance, staff, config property
+Finance | Property/company sesuai grant | Accounting, tax, bank, report, reconciliation
+Operational Staff | Property tertentu | Front office, housekeeping, maintenance sesuai tugas
+Employee/User | Diri sendiri / scope terbatas | Attendance, request, self-service
+5.3 Enterprise Consolidation
+Gunakan read model/snapshot teragregasi untuk revenue, occupancy, cash/bank, tax, payroll, AR/AP, dan KPI.
+Jangan menjalankan report enterprise sebagai N+1 query berat ke seluruh transaksi semua property setiap refresh.
+Setiap consolidated report menyimpan periode, property set, source revisions, checksum, dan integrity status.
+Cross-property transfer harus menjadi workflow berpasangan (source leg + destination leg + reconciliation), bukan edit saldo manual.
+6. Transactional Authority & Accounting Safety
+Invariant wajib | Requirement
+Idempotency | Setiap mutation finansial/booking penting memiliki operation_id; retry tidak boleh membuat transaksi kedua.
+DB Transaction | Mutation multi-table harus atomic; rollback pada kegagalan sebelum commit.
+Row Locking | Shift, booking, room inventory, sequence, dan resource kritis menggunakan lock sesuai race scenario.
+Split Payment | Cash + bank/QRIS legs = total; akun tujuan tersimpan; report/journal mengikuti legs.
+Accounting | Total debit = total credit; reversal menggunakan authority resmi, bukan kategori palsu.
+Tax | Rule/snapshot sesuai waktu transaksi; unresolved rule fail-closed atau explicit review.
+Backfill | Tanggal historis, tax semantics, split, duplicate guard, closed period policy, dan audit trail wajib konsisten.
+Refund/Void | Mengikuti payment legs asli; retry/timeout tidak boleh double refund.
+7. Hybrid Online/Offline & Dua Server
+7.1 Offline Contract
+Client membuat operation ID stabil sebelum mutation dikirim.
+Pending queue disimpan durable di client sebelum UI menganggap operasi queued.
+Server mengembalikan ACK/receipt yang dapat digunakan untuk prune queue.
+Retry memakai operation ID yang sama; HTTP 202/timeout/retryable response bukan terminal success.
+Payload hash/fingerprint diverifikasi untuk mencegah operation ID sama dengan payload berbeda.
+Local projection diberi status PENDING dan diganti state canonical setelah ACK/reload.
+7.2 Primary / Standby
+Kontrol | Desain
+Single Writer | Hanya Primary aktif yang menerima financial/business write.
+Fencing / Epoch | Writer membawa fencing token/leadership epoch; stale writer ditolak.
+Outbox | Mutation yang perlu direplikasi masuk durable outbox.
+Receipts | Standby/replay menyimpan receipt untuk idempotency.
+Uncertain state | Timeout setelah kemungkinan commit tidak diubah menjadi blind retry ke writer lain.
+Deep checksum | Run-if-due/maintenance membandingkan revision/checksum replication surface.
+Failover | Promote hanya setelah lease/fencing dan replication state memenuhi policy.
+8. Async, Realtime, Queue, dan Worker
+Service pendamping diperkenalkan hanya ketika workload membutuhkan capability yang sulit/mahal dilakukan dalam request PHP biasa.
+Use case | Shared Hosting | VPS / Scale | Authority
+Telegram | Webhook PHP langsung | Queue + worker opsional | PHP business authority
+Email/report batch | Synchronous bounded / opportunistic | Queue worker | Snapshot dari PHP canonical engine
+Realtime dashboard | Polling revision | WebSocket/SSE service | Read-only events
+IoT / lock / RFID | HTTP/polling bounded | Persistent device worker | Command authority dari PHP
+Heavy reconciliation | Run-if-due | Scheduled worker | Read-only guard + controlled writes to diagnostic tables
+Image/file processing | Inline terbatas | Background worker/object storage | Metadata canonical tetap di core
+8.1 Queue Contract
+Job mempunyai job_id/operation_id, type, property scope, payload version, created_at, attempts, status, checksum.
+Worker harus idempotent dan mampu menerima duplicate delivery.
+Financial side effect harus kembali memanggil canonical command/API atau memakai transactional outbox contract; worker tidak menulis ledger langsung.
+Dead-letter queue harus dapat dilihat di System Health dan tidak hilang diam-diam.
+9. Report, Telegram, dan Channel Parity
+PDF, XLSX, CSV, email attachment, dan Telegram summary berasal dari canonical report/snapshot yang sama.
+Web dan Telegram menggunakan command semantics yang sama untuk check-in/out, shift, pindah kamar, payment, refund, dan diagnostics.
+Channel-specific UI boleh berbeda; result state, ledger, tax, operation ID, dan authorization tidak boleh berbeda.
+Report enterprise membawa source property revisions agar angka konsolidasi dapat direkonsiliasi.
+Parity test | Expected
+Web vs Telegram payment | Ledger/payment legs identik
+Web vs Telegram shift close | Expected cash dan close state identik
+PDF vs XLSX vs email | Report ID/checksum/snapshot sama
+Offline replay vs online mutation | Canonical final state identik
+Property vs Enterprise aggregate | Enterprise = sum/reconciliation dari source revisions
+10. Security, Audit, dan Consistency Guard
+RBAC fail-closed: malformed permission tidak boleh fallback menjadi izin lebih tinggi.
+Audit log immutable untuk create/edit/delete/refund/void/reopen shift/tax rule/role changes/failover.
+Release/schema guard: source build, release marker, schema contract, property identity, dan semantic binding harus cocok sebelum traffic write dibuka.
+Consistency Guard memonitor payment allocation, journal balance, tax snapshot, shift cash, reconciliation, offline queue, node sync, dan Primary/Standby.
+Guard tidak melakukan silent auto-fix terhadap data keuangan; hasilnya PASS/WARNING/FAIL dengan evidence.
+Maintenance harus fleksibel: event-driven + opportunistic run-if-due + cron/worker optional.
+11. Performance & Scaling Strategy
+11.1 Prioritas optimasi sebelum menambah service
+Index query berdasarkan property/date/status/foreign key yang paling sering digunakan.
+Pagination untuk daftar besar; jangan mengirim seluruh histori transaksi ke browser untuk view sederhana.
+Gunakan server-revision/ETag/last-updated untuk menghindari full reload tanpa perubahan.
+Cache read-only bounded; mutation dan financial state tidak boleh bergantung cache sebagai source of truth.
+Aggregate/read model untuk Enterprise dashboard dan laporan periode besar.
+Archive/partition policy untuk audit/event data berumur panjang, dengan retention yang dapat diaudit.
+Lazy-load modul berat dan visibility-aware polling di browser.
+11.2 Target performa (planning target, bukan SLA final)
+Profil | Target interaksi umum | Catatan
+Shared Hosting | UI operasional responsif pada beban hotel tunggal/kecil-menengah; mutation bounded dan tidak memakai job panjang | Fokus query/index/pagination dan opportunistic maintenance
+VPS Single Node | Read API umum p95 < 800 ms; mutation umum p95 < 1.2 s pada beban normal | Redis/queue optional; PHP-FPM tuning; slow query monitoring
+Multi-node SaaS | Horizontal API scaling; queue lag terukur; enterprise read model terpisah | SLA ditetapkan setelah load test dengan dataset representatif
+12. Deployment Profiles
+Profile | Komponen minimum | Komponen opsional | Kapan dipakai
+A — Shared Hosting | PHP + MySQL + PWA + Telegram webhook + opportunistic scheduler | External sync agent / remote standby | Sekarang; biaya rendah; hotel tunggal/kecil-menengah
+B — VPS Hybrid | Nginx/Apache + PHP-FPM + MySQL Primary + PWA | Redis, queue worker, Node/Go realtime, Standby DB | Cabang bertambah; integrasi/device/realtime meningkat
+C — SaaS Multi-node | Load balancer + multiple PHP API nodes + DB HA + object storage | Redis HA, worker pool, event bus, WebSocket cluster | Banyak tenant/property dan traffic tinggi
+12.1 Prinsip portability
+Feature detection/capability flag, bukan hard dependency terhadap cron/Redis/Node.
+Environment config mengaktifkan service tambahan tanpa mengganti financial/business code path.
+Satu Build ID/contract version untuk core; service tambahan menyatakan compatible contract version.
+Database migration resmi dan backward-compatible rollout untuk existing production data.
+13. Data & API Contract
+Contract field / concept | Requirement
+property_id / company scope | Wajib tersedia atau dapat diturunkan deterministik pada entity scoped.
+operation_id | Required untuk mutation kritis dan retry.
+revision | Monotonic state signal untuk sync/cache invalidation.
+source_node / channel | Audit source Web/Telegram/offline/node.
+created_at / effective_at | Pisahkan waktu pencatatan dan waktu efektif untuk Backfill/historical.
+payload_hash | Fingerprint mutation/outbox untuk anti-tamper/replay mismatch.
+schema/build contract | Client/worker harus menolak version mismatch yang tidak kompatibel.
+canonical error envelope | success, code, retryable, operation_id, receipt/status, human message.
+13.1 API rules
+Endpoint mutation tidak boleh mengandalkan UI validation sebagai satu-satunya guard.
+GET/list API menggunakan pagination/filter/scope dan reasonable max page size.
+Retryable error tidak boleh mengaktifkan duplicate-submit success shield.
+Permission parsing eksplisit; malformed claim/config fail-closed.
+Public website/API dipisahkan dari admin shell dan Service Worker cache scope.
+14. Roadmap Implementasi Bertahap
+Fase | Fokus | Deliverable utama | Gate keluar
+0 — Baseline Lock | Kontrak existing dan regression | Release marker, schema verify, operation contracts, golden UAT | Regression + production verifier PASS
+1 — Property Isolation | Multi-property safety | Scope middleware, query guard, role scope, property-aware audit | Cross-property leakage test = 0
+2 — Enterprise Read Model | Konsolidasi cabang | Company/property model, consolidated snapshots, enterprise report | Property vs enterprise reconciliation PASS
+3 — Async Foundation | Job/outbox worker optional | Queue contract, DLQ, worker adapter, observability | Duplicate delivery/idempotency PASS
+4 — VPS Profile | Scale-up infrastructure | PHP-FPM tuning, Redis optional, worker, standby automation | Load/failover test PASS
+5 — Realtime/IoT | Persistent connections | WebSocket/SSE, device worker, command ACK | Realtime does not bypass canonical authority
+6 — SaaS Scale | Horizontal multi-tenant | LB, multi-node API, DB HA, object storage, tenant ops | Isolation + load + DR tests PASS
+14.1 Prioritas implementasi yang direkomendasikan sekarang
+Jangan mulai dari Redis/Kubernetes. Mulai dari property isolation contract dan Enterprise consolidated read model.
+Pertahankan PHP business core; ekstrak hanya workload yang benar-benar asynchronous/realtime.
+Bangun queue contract sebelum worker; jangan membuat worker yang langsung menulis database tanpa idempotency.
+Load test dengan dataset hotel/cabang realistis sebelum memutuskan sharding atau microservice.
+15. UAT, Release Gate, dan Acceptance Criteria
+15.1 Mandatory release gates
+Gate | Minimum evidence
+Schema/Release | database_verify + semantic binding + patch marker compatible
+Financial | cash/bank split, tax, journal balance, refund/reversal, backfill matrix PASS
+Operational | reservation, check-in/out, room move, housekeeping, maintenance, shift PASS
+Channel parity | Web/Telegram/offline final state equivalent
+Hybrid sync | operation replay, conflict, timeout-after-commit, fencing, standby checksum PASS
+Report | PDF/XLSX/email snapshot checksum parity PASS
+Security | RBAC malformed input, cross-property access, admin tools secret, public routes PASS
+Performance | No unexpected full reload/polling; slow query and memory review within target
+Packaging | Fresh-extract regression + manifest/checksum + no temp/backup files
+15.2 Definition of Done untuk Multi-Property Enterprise
+Property A tidak dapat membaca/mengubah data Property B tanpa enterprise scope eksplisit.
+Consolidated report dapat direkonsiliasi ke report property yang menjadi sumbernya.
+Satu property/node gagal tidak membuat transaksi property lain gagal atau tertulis ganda.
+Web, Telegram, offline replay, report, dan Enterprise memakai semantic payment/tax/accounting yang sama.
+Deployment dapat berpindah shared hosting → VPS tanpa rewrite financial core.
+Service tambahan dapat dimatikan dan core PMS tetap dapat menjalankan transaksi normal secara aman.
+16. Risiko & Mitigasi
+Risiko | Level | Mitigasi
+Rewrite tergesa-gesa menciptakan regression uang | Tinggi | No full rewrite; strangler/adjacent-service pattern; regression parity.
+Cross-property data leak | Kritis | Mandatory scope middleware, query tests, role scope, audit.
+Double writer saat failover | Kritis | Lease + fencing + epoch + receipts + promotion policy.
+Worker melakukan write liar | Tinggi | Canonical command contract; no direct ledger writes.
+Enterprise query terlalu berat | Tinggi | Read model/snapshot + incremental aggregation.
+Shared hosting overload | Sedang | Pagination, revision-driven refresh, bounded jobs, opportunistic scheduler.
+Cache/realtime stale | Sedang | Revision/build ID, ETag/event invalidation, visible mismatch states.
+Complexity microservice terlalu dini | Tinggi | Extract only measured bottlenecks; maintain module boundaries first.
+17. Keputusan Akhir / Definition of Architecture
+Keputusan PRDTAMASYA tetap menggunakan PHP sebagai transactional and financial core. Multi-property Enterprise dibangun melalui isolation contract dan consolidated read model. Node.js/Go/Redis/queue diperkenalkan bertahap hanya untuk capability tambahan. Arsitektur wajib tetap portable dari shared hosting ke VPS/SaaS, mempertahankan hybrid online/offline dan Primary/Standby tanpa membuat writer finansial kedua.
+Urutan prioritas implementasi: Property Isolation → Enterprise Read Model → Async Contract → VPS Profile → Realtime/IoT → SaaS Scale.
+17.1 Keputusan yang tidak boleh dilanggar tanpa ADR baru
+Financial mutation hanya melalui canonical authority.
+Setiap critical mutation idempotent dan traceable.
+Property scope eksplisit untuk data multi-property.
+Offline dan dua-server tidak boleh menghasilkan second write pada uncertain state.
+Cron/Redis/Node tidak boleh menjadi dependency wajib bagi fungsi PMS dasar.
+Report Enterprise harus reconcile ke property source revisions.
+Rewrite bahasa/framework bukan strategi scaling default.
+17.2 Backlog implementasi 90 hari pertama
+Sprint | Fokus | Output yang harus selesai
+1–2 | Property isolation contract | Scope matrix, query guard, role-scope tests, audit property leakage.
+3–4 | Enterprise read model | Snapshot KPI property, consolidated finance/occupancy report, reconciliation source revisions.
+5 | Async contract | Job/outbox schema contract, retry policy, DLQ dashboard, worker adapter interface.
+6 | Performance baseline | Dataset representatif, slow-query profile, pagination/index actions, capacity report shared hosting/VPS.
+17.3 Kapan perlu ADR baru
+Worker baru ingin menulis langsung ke transaksi/jurnal canonical.
+Model tenancy berubah dari property-scoped menjadi database-per-tenant atau sharded.
+Redis/message broker hendak dijadikan dependency wajib untuk transaksi PMS dasar.
+Desain failover mengubah single-writer menjadi multi-writer.
+Rewrite bahasa/framework dipertimbangkan untuk core finansial.
+— End of PRD —

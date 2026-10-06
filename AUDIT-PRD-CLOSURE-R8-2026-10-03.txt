@@ -1,0 +1,57 @@
+TAMASYA PRD CLOSURE R8 — ROOT CAUSE AUDIT
+Date: 2026-10-03
+Exact parent: 85d72c4ad70c8450899f3f92b517dc389c89e4b5
+
+EVIDENCE FROM GITHUB R7
+- Full hotel scenario assertions: 731/731 PASS; 0 FAIL.
+- Browser Playwright: 34/34 PASS.
+- SaaS runtime: canonical 113 tables / 5 triggers PASS, exact source attestation PASS, restricted runtime PASS, API/Nginx routing PASS, 96 concurrent DB reads PASS, shared storage/worker/restart/replica-loss PASS.
+- PRD failure occurs only at HQ adapter database bootstrap after hq/schema.sql and hq/delivery_schema.sql import succeeds.
+- Failure payload: actualTables=7, actualTriggers=0, expectedTables=0, expectedTriggers=0, seven actual HQ tables classified as extra.
+
+ROOT CAUSE
+1. mysql-canonical-authority-verify.py derived expected CREATE TABLE objects only from backtick-quoted identifiers. HQ schema uses unquoted identifiers, so expectedTables incorrectly became zero.
+2. mysql-bootstrap-runtime-boundary.sh had a property-specific schema_release_state attestation block for every database profile. HQ has an independent schema and intentionally does not contain the PMS schema_release_state table. Fixing only the parser would expose this second architectural mismatch next.
+
+R8 CORRECTION
+- Unified identifier grammar handles backtick, unquoted, IF NOT EXISTS, and schema-qualified names.
+- Parser zero-table result is explicitly fail-closed.
+- Explicit authority profiles: property | hq.
+- Property-only canonical release/source attestation retained.
+- HQ strict schema verification retained, plus deterministic ordered schema-source digest evidence; no fake PMS release-state table introduced.
+- HQ runtime remains SELECT/INSERT/UPDATE only and now has a behavioral DELETE-denial proof.
+- Existing DDL/TRIGGER/SUPER/global/grant escalation denial checks remain unchanged.
+- New parser/profile regression exercises canonical PMS, HQ base, HQ control plane, mixed identifier grammar, and fail-closed empty parsing.
+
+NO UAT WEAKENING
+- No assertion removed.
+- No expected value changed to match failure.
+- No timeout increased.
+- No job skipped.
+- No runtime privilege broadened.
+- No trigger/schema safety gate disabled.
+
+LOCAL DETERMINISTIC RESULT BEFORE PACKAGING
+- PHP regression 68/68 PASS
+- JS regression 21/21 PASS
+- Finance 9/9 PASS
+- Hybrid 33/33 PASS
+- Realtime 16/16 PASS
+- PRD architecture 5/5 PASS
+- PRD performance 7/7 PASS
+- PRD deployment 7/7 PASS
+- PRD scale runtime 7/7 PASS
+- PRD storage runtime 7/7 PASS
+- DB readiness 8/8 PASS
+- DB authority 11/11 PASS
+- Trigger metadata 5/5 PASS
+- Browser harness 5/5 PASS
+- Runtime schema authority 6/6 PASS
+- Provisioning attestation 5/5 PASS
+- Runtime config 4/4 PASS
+- Schema authority parser/profile 6/6 PASS
+- POS business-date 7/7 PASS
+- Device 9 PASS
+- Database TLS 4 PASS
+
+Docker/MySQL HQ runtime still requires the next GitHub run for exact environment proof.

@@ -1,0 +1,7 @@
+LANJUT TAMASYA PRD CLOSURE DARI R9.
+
+Exact parent R8 GitHub: d698c66710fe86c51a849054009a20bed727e832
+R8 run #41: full hotel UAT 731/731 PASS, Playwright 34/34 PASS, SaaS runtime + realtime PASS, HQ 7-table authority/bootstrap PASS.
+Only failure: external HQ adapter harness mounted tests at /opt/tamasya-tests but inferred app root as /opt and attempted /opt/hq/delivery.php although production image source is /var/www/tamasya.
+R9 fixes this with explicit TAMASYA_TEST_APP_ROOT, manifest/checksum-verified source resolution, read-only hardened adapter container, image HQ lint, and dedicated regression.
+Do not weaken UAT. If R9 all GREEN, freeze exact green commit as TAMASYA PRD SOFTWARE FINAL.

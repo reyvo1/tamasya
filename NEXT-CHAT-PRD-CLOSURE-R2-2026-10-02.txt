@@ -1,0 +1,22 @@
+LANJUTKAN TAMASYA PRD CLOSURE DARI R2. JANGAN AUDIT DARI NOL DAN JANGAN BUAT REPO/GITHUB BARU.
+
+REPO/LINEAGE:
+- gunakan repository TAMASYA yang sama;
+- locked pre-PRD parent: 639d811cf6ad4c336b7814f815bb02a76861d6f9;
+- R1 operator commit: a2889c5;
+- R1 GitHub UAT dilaporkan GREEN oleh operator;
+- runtime Build ID tetap 20261002-prd-closure-r1 karena R2 tidak mengubah business/runtime code, hanya evidence/workflow/test/doc.
+
+R2 MENAMBAHKAN:
+1. dua PHP-FPM API + Nginx SaaS benar-benar boot di Docker;
+2. MySQL 8.4 canonical fresh schema + 96 concurrent DB-backed ping reads;
+3. realtime server.mjs dijalankan sebagai process nyata dan diuji ticket/origin/property-scope/upstream outage;
+4. HQ delivery worker contract diuji terhadap HTTPS mock + MySQL: exact 200 ACK, 202/wrong ACK => uncertain, no auto resend;
+5. object-storage SigV4 diuji HTTPS: immutable conditional PUT, duplicate 412, GET checksum read-back;
+6. seluruh UAT lama tetap wajib dan tidak boleh dilemahkan.
+
+NEXT:
+- baca log GitHub run R2 pada exact commit.
+- jika ada merah, root-fix failure pertama dan rerun penuh.
+- jika seluruh job GREEN, buat FINAL LOCK dari exact GREEN commit: FULL ZIP + SHA-256 + final As-Built + HANDOFF + NEXT-CHAT.
+- jangan klaim perangkat fisik/provider/cloud multi-fault-domain sebagai CI-proven; itu commissioning evidence.

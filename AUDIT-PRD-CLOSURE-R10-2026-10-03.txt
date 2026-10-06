@@ -1,0 +1,55 @@
+TAMASYA PRD CLOSURE R10 AUDIT
+Date: 2026-10-03
+Parent: f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+Run: 37100900748
+Check suite: 100495794667
+
+R9 GITHUB EVIDENCE
+- source/syntax/security: PASS
+- full hotel/business UAT: 731/731 PASS; 0 FAIL
+- Playwright: 34/34 PASS
+- SaaS runtime through realtime/HQ DB bootstrap: PASS
+- failure point: first HQ outbound private-TLS delivery
+- observed result: status=uncertain code=ACK_NOT_VERIFIED
+
+ROOT CAUSE
+The CI bridge is signed by a private CA. R9 mounted that CA and exported
+CURL_CA_BUNDLE/SSL_CERT_FILE, but HQ production adapter code did not provide
+an application-level CA bundle path to PHP/libcurl. delivery.php and
+object_storage.php kept verification enabled yet never set CURLOPT_CAINFO.
+Therefore private outbound TLS trust was not encoded in the adapter config.
+
+R10 CODE FIX
+- shared caFile resolver in hq/core.php
+- caFile must be absolute/readable when configured
+- delivery bridge sets CURLOPT_CAINFO when caFile exists
+- object storage sets CURLOPT_CAINFO when caFile exists
+- CURLOPT_SSL_VERIFYPEER remains true
+- CURLOPT_SSL_VERIFYHOST remains 2
+- exact terminal delivery ACK requirement remains unchanged
+- uncertain jobs remain non-auto-retry
+- missing configured CA fails closed before send
+- delivery result now returns sanitized exact failure class:
+  TRANSPORT_ERROR_<errno>, HTTP_<status>_NOT_FINAL,
+  ACK_INVALID_JSON, ACK_SUCCESS_FALSE, ACK_JOB_MISMATCH,
+  ACK_REPORT_MISMATCH, ACK_STATUS_NOT_DELIVERED
+- object storage transport failures expose sanitized curl errno only
+
+UAT HARDENING
+- external mock config now passes caFile explicitly
+- environment-only CA injection removed from adapter container
+- HTTP 202 remains uncertain
+- wrong ACK remains uncertain
+- missing CA is explicitly tested as blocked/fail-closed
+- immutable object PUT/GET/read-back/412 tests remain
+- new prd-outbound-tls-regression.php
+- scale regression updated for refactored strict ACK helper, not weakened
+
+NO BUSINESS CODE CHANGES
+No booking, POS, finance, tax, journal, settlement, Telegram business path,
+canonical PMS database schema or hotel transaction logic is changed in R10.
+
+LOCAL LIMITATION
+Docker is not installed in this execution environment. Full private-TLS/MySQL
+integration is therefore not claimed locally; GitHub remains the exact runtime
+authority for that gate.

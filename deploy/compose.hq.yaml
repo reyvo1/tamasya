@@ -1,0 +1,42 @@
+name: ${TAMASYA_HQ_STACK:-tamasya-hq}
+x-hq: &hq
+  image: ${TAMASYA_IMAGE:-tamasya-enterprise:local}
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp]
+  environment:
+    TAMASYA_HQ_CONFIG_FILE: /run/secrets/hq/config.json
+  volumes:
+    - ${TAMASYA_HQ_PRIVATE_DIR:?Set absolute HQ private directory}:/run/secrets/hq:ro
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
+services:
+  hqapi: *hq
+  delivery:
+    <<: *hq
+    profiles: [delivery]
+    command: [php, hq/delivery_worker.php, daemon]
+  realtime:
+    image: node:22-alpine
+    user: node
+    restart: unless-stopped
+    read_only: true
+    environment:
+      TAMASYA_REALTIME_CONFIG_FILE: /run/secrets/realtime.json
+    volumes:
+      - ../services/realtime:/srv/realtime:ro
+      - ${TAMASYA_HQ_PRIVATE_DIR}/realtime.json:/run/secrets/realtime.json:ro
+    command: [node, /srv/realtime/server.mjs]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+  hqweb:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    ports: ["127.0.0.1:${TAMASYA_HQ_HTTP_PORT:-8081}:8080"]
+    volumes:
+      - ..:/var/www/tamasya:ro
+      - ./nginx-hq.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [hqapi, realtime]

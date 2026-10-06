@@ -1,0 +1,7 @@
+.tamasya-public-language-switcher{display:flex;align-items:center;gap:.45rem;margin-right:.25rem;white-space:nowrap}
+.tamasya-public-language-switcher .tamasya-language-label{font:700 11px/1 system-ui,-apple-system,"Segoe UI",sans-serif;color:inherit;opacity:.72;text-transform:uppercase;letter-spacing:.04em}
+.tamasya-public-language-switcher select{appearance:none;-webkit-appearance:none;min-height:38px;border:1px solid rgba(22,66,49,.18);background:rgba(255,255,255,.94);color:#173c2e;border-radius:999px;padding:.45rem 1.9rem .45rem .75rem;font:700 12px/1 system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer;outline:none;background-image:linear-gradient(45deg,transparent 50%,#2f6a52 50%),linear-gradient(135deg,#2f6a52 50%,transparent 50%);background-position:calc(100% - 12px) 50%,calc(100% - 8px) 50%;background-size:4px 4px,4px 4px;background-repeat:no-repeat}
+.tamasya-public-language-switcher select:focus-visible{border-color:#3b8c69;box-shadow:0 0 0 3px rgba(59,140,105,.14)}
+html[lang="en"] h1,html[lang="en"] h2,html[lang="en"] h3,html[lang="en"] p{overflow-wrap:anywhere}
+@media(max-width:760px){.tamasya-public-language-switcher{margin-left:auto}.tamasya-public-language-switcher .tamasya-language-label{display:none}.tamasya-public-language-switcher select{min-height:42px}}
+@media(prefers-reduced-motion:reduce){html:focus-within{scroll-behavior:auto!important}*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}

@@ -1,0 +1,27 @@
+LANJUTKAN TAMASYA PRD CLOSURE DARI MACRO CHECKPOINT R3. JANGAN AUDIT DARI NOL DAN JANGAN KEMBALI KE PATCH KECIL.
+
+PARENT GITHUB WAJIB:
+93311195790b17730dbee0199b5e66825e15dd4f
+(branch existing rc1/post-green-owner-harness-v2)
+
+BUKTI R2:
+- Source/syntax/security GREEN.
+- Full hotel finance/booking/UI/Telegram UAT GREEN.
+- PRD deployment job RED sebelum MySQL runtime karena fresh named-volume copy-up race saat api+api2 dibuat paralel:
+  state/_data/outbox -> mkdir file exists.
+
+R3 ROOT FIX / MACRO WAVE:
+- state + uploads volume.nocopy=true.
+- one-shot storage-init serializes creation/permission of outbox/backups/uploads.
+- API/worker/web wait for successful storage init.
+- init fails closed on symlink/non-directory and never deletes operator data.
+- PHP-FPM/worker remain non-root/read-only-rootfs.
+- runtime smoke now proves fresh parallel api+api2 startup, cross-replica state, public upload sharing, 96 concurrent DB reads, worker shared state, restart persistence, replica-loss degradation, private path denial.
+- Nginx keeps fastcgi_next_upstream off; no uncertain business request replay.
+- existing realtime/HQ TLS/S3 simulations retained.
+
+NEXT:
+1. Read newest GitHub logs from exact R3 commit.
+2. If RED, fix FIRST NEW REAL FAILURE at root cause; do not weaken assertions and do not split into tiny push loops.
+3. If all jobs GREEN, freeze exact commit as TAMASYA PRD SOFTWARE FINAL, regenerate FULL ZIP + SHA-256 + final As-Built + HANDOFF/NEXT-CHAT.
+4. Physical device/provider/cloud multi-fault-domain validation remains commissioning, not fake CI PASS.

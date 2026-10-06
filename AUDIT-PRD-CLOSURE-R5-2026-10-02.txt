@@ -1,0 +1,82 @@
+TAMASYA PRD CLOSURE R5 — DATABASE AUTHORITY SEPARATION MACRO AUDIT
+Date: 2026-10-02
+Repository: reyvo1/testamasya
+Branch: rc1/post-green-owner-harness-v2
+Exact parent from uploaded GitHub log: e2a3f38a7225da8419a1ed823911bb14a77bdc96
+
+UPLOADED R4 GITHUB EVIDENCE
+- Source/syntax/security gate: GREEN.
+- Full hotel finance/booking/UI/Telegram UAT: 731/731 PASS; 0 FAIL.
+- R3 serialized storage-init root fix remains successful: api/api2/web start on fresh nocopy volumes.
+- R4 authenticated database readiness passed with tamasya_ci.
+- Wrong application password rejection passed.
+- First new runtime-simulation failure:
+  ERROR 1419 (HY000) at database_setup.sql line 2686:
+  You do not have the SUPER privilege and binary logging is enabled.
+- Line 2686 is CREATE TRIGGER trg_transactions_tax_snapshot_bi.
+
+ROOT CAUSE
+R4 correctly replaced mysqladmin process-liveness with authenticated SQL readiness, but it then intentionally reused the application runtime account as schema owner. Canonical schema contains triggers. Under binary logging MySQL correctly prevents a non-administrative runtime account from creating those trigger objects. The problem is authority separation, not readiness, not the trigger definition, and not hotel business logic.
+
+This also conflicted with existing production provisioning semantics in deploy/provision_property.php, which already instruct DBA schema import and grants runtime only SELECT/INSERT/UPDATE/DELETE on the property database.
+
+R5 ROOT FIX
+1. Added tests/uat_prd/mysql-bootstrap-runtime-boundary.sh as the single PRD schema/runtime authority harness.
+2. Disposable MySQL fixtures no longer use MYSQL_USER/MYSQL_PASSWORD auto-provisioning, avoiding Docker's broad database grant for the app identity.
+3. Fresh schema and triggers are imported only through disposable migration/DBA authority.
+4. Runtime PMS identity is created only after schema import with SELECT,INSERT,UPDATE,DELETE.
+5. HQ runtime identity is created only after HQ schema import with SELECT,INSERT,UPDATE.
+6. SHOW GRANTS is inspected for forbidden CREATE/ALTER/DROP/TRIGGER/GRANT OPTION/SUPER/ALL PRIVILEGES.
+7. Runtime CREATE TABLE is behaviorally required to fail.
+8. Runtime SET GLOBAL log_bin_trust_function_creators is behaviorally required to fail.
+9. Wrong runtime password is still required to fail.
+10. Existing authenticated TCP SELECT readiness contract is retained for migration and runtime identities.
+11. SaaS canonical table/trigger count checks are retained: 113 tables, 5 triggers.
+12. HQ external adapters use the same authority split.
+13. Deployment runbook now states migration/DBA credentials must not be mounted into PHP-FPM/worker/realtime/HQ runtime; shared-hosting one-user limitation is documented as a platform exception.
+14. Added PRD database-authority regression and rerun it after runtime simulation.
+
+NOT USED AS A FIX
+- No SUPER granted to runtime.
+- No CREATE/TRIGGER privilege granted to runtime.
+- No binary logging disablement.
+- No log_bin_trust_function_creators enablement.
+- No blind sleep/retry around CREATE TRIGGER.
+- No financial/business UAT assertion removed or weakened.
+
+LOCAL DETERMINISTIC VERIFICATION
+- PHP regression: 68/68 PASS.
+- JavaScript regression: 21/21 PASS.
+- Finance regression: 9/9 PASS.
+- Hybrid regression: 33/33 PASS.
+- Realtime regression: 16/16 PASS.
+- PRD Architecture: 5/5 PASS.
+- PRD Performance: 7/7 PASS.
+- PRD Deployment: 7/7 PASS.
+- PRD Scale Runtime: 7/7 PASS.
+- PRD Storage Runtime: 7/7 PASS.
+- PRD Database Readiness: 8/8 PASS.
+- PRD Database Authority: 8/8 PASS.
+- Device Contract: 9 PASS.
+- Database TLS: 4 PASS.
+- PHP lint: 128 files PASS.
+- JS/MJS syntax: 77 files PASS.
+- Python compile: 30 files PASS.
+- Shell syntax: PASS.
+- Workflow YAML parse: PASS.
+
+ENVIRONMENT LIMITATION
+The current sandbox does not provide a Docker executable/daemon. Therefore R5 does NOT claim the new Docker/MySQL runtime path has passed locally. The exact GitHub commit must prove migration-authority schema import, restricted runtime grants, horizontal PHP-FPM/Nginx runtime, worker, restart persistence, replica-loss behavior, realtime process, HQ TLS delivery and S3 mock behavior.
+
+RELEASE RULE
+R5 is a candidate only. If the exact R5 GitHub commit makes every workflow job GREEN, freeze that exact commit as TAMASYA PRD SOFTWARE FINAL. If RED, continue from the first new real failure and preserve all already-green gates.
+
+PACKAGE / FRESH-EXTRACT EVIDENCE
+- Candidate manifest entries: 372; fresh extraction sha256sum -c: 372/372 PASS.
+- Fresh-extract PRD Database Readiness regression: 8/8 PASS.
+- Fresh-extract PRD Database Authority regression: 8/8 PASS.
+- Fresh-extract workflow YAML parse: PASS.
+- Fresh-extract shell syntax: PASS.
+- PATCH applied over the exact R4 candidate source has byte parity with FULL R5 candidate: missing=0, extra=0, different=0.
+- ZIP integrity: PASS for FULL candidate and PATCH.
+- GitHub commit e2a3f38a7225da8419a1ed823911bb14a77bdc96 was independently resolved as commit title `TAMASYA PRD closure R4 authenticated database readiness macro`.

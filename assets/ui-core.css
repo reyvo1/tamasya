@@ -1,0 +1,802 @@
+﻿/* TAMASYA V137 canonical admin UI styles. Consolidated from validated historical UI layers. */
+/* TAMASYA historical UI simplification layer. Presentation-only; business routes remain unchanged. */
+.ui-core-nav-group-member { display:flex; }
+.ui-core-nav-system-operation { opacity:.72; border-style:dashed !important; }
+.ui-core-nav-system-operation:hover,.ui-core-nav-system-operation[data-active="true"] { opacity:1; }
+
+.ui-core-nav-group-button {
+  color:#94a3b8;
+  border:1px solid transparent;
+  background:transparent;
+  transition:background-color .14s,border-color .14s,color .14s !important;
+}
+.ui-core-nav-group-button:hover { color:#e2e8f0; background:rgba(255,255,255,.045); }
+.ui-core-nav-group-button[data-active="true"] {
+  color:#a7f3d0 !important;
+  background:rgba(16,185,129,.09) !important;
+  border-color:rgba(52,211,153,.22) !important;
+  box-shadow:none !important;
+}
+.ui-core-nav-group-icon { font-size:13px; line-height:1; filter:saturate(.8); }
+.ui-core-nav-chevron { margin-left:2px; color:#64748b; font-size:11px; }
+
+.ui-core-nav-dropdown {
+  position:fixed;
+  z-index:140;
+  max-height:min(62vh,360px);
+  overflow:auto;
+  padding:5px;
+  border-radius:11px;
+  border:1px solid rgba(148,163,184,.18);
+  background:#0b1220;
+  box-shadow:0 14px 34px rgba(2,6,23,.48);
+}
+.ui-core-nav-dropdown-item {
+  display:flex!important;
+  align-items:center!important;
+  width:100%!important;
+  min-height:32px!important;
+  border:0!important;
+  border-radius:7px!important;
+  padding:7px 9px!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#cbd5e1!important;
+  font-size:11px!important;
+  font-weight:700!important;
+  line-height:1.2!important;
+  text-align:left!important;
+  cursor:pointer!important;
+}
+.ui-core-nav-dropdown-item:hover { background:rgba(255,255,255,.055)!important; color:#f8fafc!important; }
+.ui-core-nav-dropdown-item[data-active="true"] { background:rgba(16,185,129,.10)!important; color:#a7f3d0!important; }
+.ui-core-nav-dropdown-divider {
+  margin:7px 5px 3px;
+  padding-top:7px;
+  border-top:1px solid rgba(148,163,184,.14);
+  color:#64748b;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+
+/* One clear active-state treatment instead of gradient + shadow + underline + border at once. */
+.nav-tab:before { display:none !important; }
+.nav-tab:after {
+  inset:auto 16px 1px !important;
+  height:2px !important;
+  background:#34d399 !important;
+}
+.nav-tab:hover:after { transform:scaleX(0) !important; }
+.nav-tab[data-active="true"]:after { transform:scaleX(1) !important; }
+.nav-tab[data-active="true"] {
+  background:rgba(255,255,255,.06) !important;
+  border-color:rgba(148,163,184,.18) !important;
+  box-shadow:none !important;
+}
+.nav-scroll {
+  background:#0b1220 !important;
+  box-shadow:inset 0 1px rgba(255,255,255,.035) !important;
+}
+
+/* Reduce decorative motion; retain feedback without moving layout. */
+.glass-card-hover,.interactive-card { transition:background-color .14s,border-color .14s,box-shadow .14s !important; }
+.glass-card-hover:hover,.interactive-card:hover { transform:none !important; box-shadow:0 12px 30px rgba(2,6,23,.28) !important; }
+button:not(:disabled):active { transform:scale(.99) !important; }
+.page-enter,.animate-fade-in { animation-duration:.11s !important; }
+
+.ui-core-nav-operations-note {
+  margin:12px 0 0;
+  padding:8px 11px;
+  border:1px solid rgba(56,189,248,.14);
+  border-radius:10px;
+  background:rgba(14,165,233,.055);
+  color:#94a3b8;
+  font-size:11px;
+  line-height:1.45;
+}
+.ui-core-nav-operations-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+@media(min-width:640px){.ui-core-nav-operations-grid{grid-template-columns:repeat(3,minmax(0,1fr)) !important}}
+@media(min-width:1024px){.ui-core-nav-operations-grid{grid-template-columns:repeat(5,minmax(0,1fr)) !important}}
+
+/* Website: Media Library is the primary path; raw URLs stay available as Advanced. */
+.ui-core-nav-advanced-toggle {
+  margin:0 0 12px;
+  border:1px solid rgba(148,163,184,.18);
+  border-radius:9px;
+  background:rgba(255,255,255,.035);
+  color:#94a3b8;
+  padding:7px 10px;
+  font-size:11px;
+  font-weight:700;
+  cursor:pointer;
+}
+.ui-core-nav-advanced-toggle:hover { color:#e2e8f0; border-color:rgba(148,163,184,.3); }
+.ui-core-nav-advanced-field { display:none !important; }
+.ui-core-nav-advanced-open .ui-core-nav-advanced-field { display:block !important; }
+
+/* Notification bell stability: one animation system only.
+   The React panel already uses Framer Motion. Disabling .page-enter here prevents
+   competing opacity/transform animations and avoids GPU/backdrop flicker on close. */
+#btn-notif-bell {
+  isolation:isolate;
+  transform:translateZ(0);
+  backface-visibility:hidden;
+  transition:background-color .14s,border-color .14s,color .14s,box-shadow .14s !important;
+}
+#btn-notif-bell:hover { border-color:rgba(148,163,184,.22) !important; }
+#btn-notif-bell:focus-visible {
+  outline:2px solid rgba(52,211,153,.68);
+  outline-offset:2px;
+}
+#btn-notif-bell .animate-pulse {
+  animation:none !important;
+  box-shadow:0 0 0 2px #0b1220,0 2px 8px rgba(244,63,94,.24);
+}
+#btn-notif-bell + .page-enter,
+#btn-notif-bell + div.page-enter {
+  animation:none !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+  background:rgba(12,19,33,.985) !important;
+  border-color:rgba(148,163,184,.20) !important;
+  box-shadow:0 22px 55px rgba(2,6,23,.52),0 1px 0 rgba(255,255,255,.04) inset !important;
+  transform-origin:top right;
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+  will-change:opacity,transform;
+  contain:paint;
+}
+#btn-notif-bell + .page-enter .custom-scrollbar,
+#btn-notif-bell + div.page-enter .custom-scrollbar { overscroll-behavior:contain; }
+#btn-notif-bell + .page-enter .bg-emerald-500\/10,
+#btn-notif-bell + div.page-enter .bg-emerald-500\/10 {
+  background:rgba(16,185,129,.10) !important;
+  border-color:rgba(52,211,153,.17) !important;
+}
+
+/* Attendance visual harmonization only -- superseded by the scoped comfort theme below; kept as release-audit marker. Historical route selector: :is(html,body)[data-tamasya-route="attendance"]. */
+/* Attendance comfort theme.
+   Presentation-only: selectors are scoped to #attendance-panel so attendance
+   API, state, event handlers, biometric flows, GPS flows, and data remain untouched. */
+#attendance-panel {
+  color-scheme:dark;
+  background:#0c1424 !important;
+  border-color:rgba(148,163,184,.16) !important;
+  box-shadow:0 20px 54px rgba(2,6,23,.28),inset 0 1px rgba(255,255,255,.025) !important;
+}
+#attendance-panel > div:first-child {
+  background:linear-gradient(180deg,rgba(30,41,59,.58),rgba(15,23,42,.40)) !important;
+  border-color:rgba(148,163,184,.13) !important;
+}
+#attendance-panel > .p-6 { background:#0c1424; }
+
+/* Neutral surfaces */
+#attendance-panel .bg-white { background-color:#111b2d !important; }
+#attendance-panel .bg-slate-50,
+#attendance-panel .bg-slate-50\/50,
+#attendance-panel .bg-slate-50\/40 { background-color:rgba(15,23,42,.64) !important; }
+#attendance-panel .bg-slate-100 { background-color:#172236 !important; }
+#attendance-panel .bg-slate-200,
+#attendance-panel .bg-slate-200\/60 { background-color:#1b2940 !important; }
+#attendance-panel .bg-indigo-50\/50,
+#attendance-panel .bg-indigo-50\/40 { background-color:rgba(99,102,241,.075) !important; }
+
+/* Semantic surfaces: same meaning, dark-theme luminance. */
+#attendance-panel .bg-emerald-50,
+#attendance-panel .bg-emerald-100 { background-color:rgba(16,185,129,.13) !important; }
+#attendance-panel .bg-amber-50,
+#attendance-panel .bg-amber-100 { background-color:rgba(245,158,11,.13) !important; }
+#attendance-panel .bg-rose-50,
+#attendance-panel .bg-rose-100 { background-color:rgba(244,63,94,.12) !important; }
+#attendance-panel .bg-sky-100 { background-color:rgba(14,165,233,.12) !important; }
+#attendance-panel .bg-indigo-100 { background-color:rgba(99,102,241,.14) !important; }
+
+/* Borders */
+#attendance-panel .border-slate-50,
+#attendance-panel .border-slate-100,
+#attendance-panel .border-slate-200 { border-color:rgba(148,163,184,.14) !important; }
+#attendance-panel .border-indigo-100,
+#attendance-panel .border-indigo-100\/50 { border-color:rgba(129,140,248,.20) !important; }
+#attendance-panel .border-emerald-100 { border-color:rgba(52,211,153,.20) !important; }
+#attendance-panel .border-amber-200 { border-color:rgba(251,191,36,.24) !important; }
+
+/* Typography hierarchy */
+#attendance-panel .text-slate-900,
+#attendance-panel .text-slate-800 { color:#e8eef7 !important; }
+#attendance-panel .text-slate-700 { color:#d3deeb !important; }
+#attendance-panel .text-slate-600 { color:#b8c5d5 !important; }
+#attendance-panel .text-slate-500 { color:#94a3b8 !important; }
+#attendance-panel .text-slate-400 { color:#8494a8 !important; }
+#attendance-panel .text-slate-300 { color:#718096 !important; }
+#attendance-panel .text-indigo-900 { color:#c7d2fe !important; }
+#attendance-panel .text-indigo-800,
+#attendance-panel .text-indigo-700 { color:#aebcff !important; }
+#attendance-panel .text-indigo-600,
+#attendance-panel .text-indigo-500 { color:#8ea1ff !important; }
+#attendance-panel .text-emerald-800,
+#attendance-panel .text-emerald-700 { color:#7ee8bd !important; }
+#attendance-panel .text-amber-800 { color:#f6cf72 !important; }
+#attendance-panel .text-sky-800 { color:#7dd3fc !important; }
+#attendance-panel .text-rose-800,
+#attendance-panel .text-rose-700,
+#attendance-panel .text-rose-600 { color:#f99aab !important; }
+
+/* Inputs and filters */
+#attendance-panel input:not([type="checkbox"]):not([type="radio"]),
+#attendance-panel select,
+#attendance-panel textarea {
+  background:#101a2c !important;
+  color:#e5edf7 !important;
+  border-color:rgba(148,163,184,.18) !important;
+  box-shadow:inset 0 1px rgba(255,255,255,.018);
+}
+#attendance-panel input::placeholder,
+#attendance-panel textarea::placeholder { color:#64748b !important; }
+#attendance-panel input:focus,
+#attendance-panel select:focus,
+#attendance-panel textarea:focus {
+  border-color:rgba(129,140,248,.55) !important;
+  box-shadow:0 0 0 3px rgba(99,102,241,.12) !important;
+  outline:none !important;
+}
+#attendance-panel option { background:#101827; color:#e5edf7; }
+
+/* Segmented controls / attendance mode tabs */
+#attendance-panel .bg-slate-200\/60.p-1,
+#attendance-panel .bg-slate-100.p-1 {
+  border:1px solid rgba(148,163,184,.11);
+  box-shadow:inset 0 1px rgba(255,255,255,.025);
+}
+#attendance-panel button.bg-white.text-indigo-700 {
+  background:rgba(99,102,241,.16) !important;
+  color:#c7d2fe !important;
+  box-shadow:0 1px 0 rgba(255,255,255,.04),0 5px 14px rgba(2,6,23,.16) !important;
+}
+
+/* Cards and key actions */
+#attendance-panel .shadow-sm { box-shadow:0 8px 22px rgba(2,6,23,.14) !important; }
+#attendance-panel button.bg-indigo-600 {
+  background:#5967df !important;
+  box-shadow:0 6px 18px rgba(79,70,229,.16);
+}
+#attendance-panel button.bg-indigo-600:hover { background:#6674e8 !important; }
+#attendance-panel button.bg-rose-50 {
+  background:rgba(244,63,94,.11) !important;
+  color:#fda4af !important;
+  border:1px solid rgba(251,113,133,.12);
+}
+#attendance-panel button.bg-rose-50:hover,
+#attendance-panel button.hover\:bg-rose-100:hover { background:rgba(244,63,94,.18) !important; }
+#attendance-panel button.bg-slate-200 {
+  background:#263449 !important;
+  color:#cbd5e1 !important;
+}
+#attendance-panel button.bg-slate-200:hover { background:#314056 !important; }
+
+/* Table readability */
+#attendance-panel table { background:#0e1728; }
+#attendance-panel thead tr { background:#131e31 !important; }
+#attendance-panel thead th {
+  color:#91a0b4 !important;
+  border-color:rgba(148,163,184,.12) !important;
+  letter-spacing:.055em;
+}
+#attendance-panel tbody { color:#cbd5e1 !important; }
+#attendance-panel tbody tr { border-color:rgba(148,163,184,.10) !important; }
+#attendance-panel tbody tr:hover { background:rgba(51,65,85,.32) !important; }
+#attendance-panel tbody button:hover { background:rgba(148,163,184,.10) !important; }
+
+/* Status chips: calm, high-contrast, no decorative blinking. */
+#attendance-panel tbody .animate-pulse,
+#attendance-panel h3 .animate-pulse { animation:none !important; }
+#attendance-panel tbody .bg-emerald-100 { color:#86efc3 !important; border:1px solid rgba(52,211,153,.16); }
+#attendance-panel tbody .bg-amber-100 { color:#f7d27d !important; border:1px solid rgba(251,191,36,.16); }
+#attendance-panel tbody .bg-sky-100 { color:#8bdcff !important; border:1px solid rgba(56,189,248,.14); }
+#attendance-panel tbody .bg-rose-100 { color:#fca5b4 !important; border:1px solid rgba(251,113,133,.15); }
+#attendance-panel tbody .bg-slate-100 { color:#cbd5e1 !important; border:1px solid rgba(148,163,184,.12); }
+
+/* Keep functional scanning/loading animations, but reduce visual glare. */
+#attendance-panel .animate-ping { animation-duration:1.35s; opacity:.75; }
+#attendance-panel .animate-spin { animation-duration:1.15s; }
+#attendance-panel .animate-bounce { animation-duration:1.35s; }
+
+/* Mobile ergonomics */
+@media(max-width:767px){
+  #attendance-panel > div:first-child { padding:16px !important; }
+  #attendance-panel > .p-6 { padding:16px !important; }
+  #attendance-panel > div:first-child > .flex,
+  #attendance-panel > div:first-child .bg-slate-200\/60 {
+    width:100%;
+  }
+  #attendance-panel > div:first-child .bg-slate-200\/60 { overflow-x:auto; }
+  #attendance-panel > div:first-child .bg-slate-200\/60 button {
+    flex:1 0 auto;
+    white-space:nowrap;
+    min-height:40px;
+  }
+  #attendance-panel table { min-width:760px; }
+}
+
+@media(prefers-reduced-motion:reduce){
+  #btn-notif-bell + .page-enter,
+  #btn-notif-bell + div.page-enter { transition:none !important; }
+  #attendance-panel .animate-ping,
+  #attendance-panel .animate-spin,
+  #attendance-panel .animate-bounce { animation-duration:.01ms !important; animation-iteration-count:1 !important; }
+}
+
+@media(max-width:639px){
+  .ui-core-nav-dropdown{max-height:min(70vh,420px);overflow:auto}
+  .ui-core-nav-operations-note{display:none}
+}
+
+
+/* Canonical role-aware admin UI layer. ROOT7 has no synthetic Manajemen nav group. */
+.ui-core-role-technical-hidden{display:none!important}
+.ui-core-role-role-button:hover{background:rgba(255,255,255,.08);color:#6ee7b7}
+.ui-core-role-dropdown,.ui-core-role-popover{position:fixed;z-index:130;background:rgba(15,23,42,.98);border:1px solid rgba(148,163,184,.22);border-radius:16px;box-shadow:0 18px 48px rgba(2,6,23,.48);padding:8px;backdrop-filter:none}
+.ui-core-role-dropdown-item{width:100%;display:flex;align-items:center;text-align:left;padding:10px 12px;border:0;border-radius:11px;background:transparent;color:#cbd5e1;font:700 12px/1.2 inherit;cursor:pointer}
+.ui-core-role-dropdown-item:hover,.ui-core-role-dropdown-item[data-active="true"]{background:rgba(255,255,255,.08);color:#6ee7b7}
+.ui-core-role-utility-row{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:8px 0 10px;min-height:36px}.ui-core-role-role-wrap{display:flex;justify-content:flex-end;margin:0;flex:0 0 auto}
+.ui-core-role-role-button{display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(148,163,184,.15);border-radius:999px;background:rgba(15,23,42,.65);padding:6px 10px;color:#94a3b8;font:800 10px/1.2 inherit;cursor:pointer}
+.ui-core-role-role-dot{width:7px;height:7px;border-radius:999px;background:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.10)}
+.ui-core-role-popover{padding:14px;color:#e2e8f0}
+.ui-core-role-popover-head{display:flex;align-items:start;justify-content:space-between;gap:12px;padding-bottom:10px;border-bottom:1px solid rgba(148,163,184,.12)}
+.ui-core-role-popover-head strong{display:block;font-size:14px}.ui-core-role-popover-head small{display:block;margin-top:2px;color:#64748b;font-size:10px}
+.ui-core-role-popover-head button{border:0;background:rgba(255,255,255,.06);color:#94a3b8;border-radius:9px;width:28px;height:28px;cursor:pointer}
+.ui-core-role-popover-section{margin-top:11px}.ui-core-role-popover-section>b{display:block;margin-bottom:7px;color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.ui-core-role-chip-list{display:flex;flex-wrap:wrap;gap:6px}.ui-core-role-chip{display:inline-flex;padding:5px 8px;border-radius:999px;border:1px solid rgba(16,185,129,.2);background:rgba(16,185,129,.08);color:#a7f3d0;font-size:10px;font-weight:750}
+.ui-core-role-popover-note{margin-top:12px;padding-top:10px;border-top:1px solid rgba(148,163,184,.12);color:#64748b;font-size:10px;line-height:1.5}
+.ui-core-role-muted{color:#64748b;font-size:11px}
+.ui-core-role-operations-grid{align-items:stretch}
+.ui-core-role-op-heading{grid-column:1/-1;padding:8px 10px 5px;margin-top:3px;color:#94a3b8;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid rgba(148,163,184,.12)}
+.ui-core-role-op-heading.ui-core-role-op-daily{color:#6ee7b7}.ui-core-role-op-heading.ui-core-role-op-control{color:#7dd3fc}.ui-core-role-op-heading.ui-core-role-op-finance{color:#fde68a}.ui-core-role-op-heading.ui-core-role-op-system{color:#94a3b8}
+.ui-core-role-op-item.ui-core-role-op-system{opacity:.78}.ui-core-role-op-item.ui-core-role-op-system:hover{opacity:1}
+.ui-core-role-permission-note{display:grid;gap:5px;margin:8px 0 12px;padding:11px 12px;border:1px solid rgba(99,102,241,.22);border-radius:13px;background:rgba(99,102,241,.07);font-size:10px;line-height:1.45;color:#94a3b8}
+.ui-core-role-permission-note strong{color:#c7d2fe;font-size:11px}.ui-core-role-permission-note span:before{content:"\2713";margin-right:6px;color:#6ee7b7;font-weight:900}
+.ui-core-role-today-work{margin:10px 0 14px;padding:14px;border:1px solid rgba(148,163,184,.14);border-radius:18px;background:linear-gradient(135deg,rgba(15,23,42,.9),rgba(2,6,23,.76));box-shadow:0 12px 34px rgba(2,6,23,.12)}
+.ui-core-role-today-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}.ui-core-role-today-head strong{display:block;color:#f8fafc;font-size:13px}.ui-core-role-today-head span{display:block;margin-top:2px;color:#64748b;font-size:10px}
+.ui-core-role-today-head button{border:1px solid rgba(148,163,184,.15);border-radius:10px;background:rgba(255,255,255,.04);padding:7px 9px;color:#94a3b8;font:800 10px inherit;cursor:pointer}
+.ui-core-role-today-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px}.ui-core-role-task{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:7px;text-align:left;border:1px solid rgba(148,163,184,.12);border-radius:12px;background:rgba(15,23,42,.78);padding:9px 10px;color:#cbd5e1;cursor:pointer}.ui-core-role-task span{font-size:9.5px;font-weight:700;line-height:1.25}.ui-core-role-task strong{font-size:18px;color:#f8fafc}.ui-core-role-task.action{border-color:rgba(56,189,248,.22);background:rgba(14,165,233,.06)}.ui-core-role-task.warn{border-color:rgba(245,158,11,.24);background:rgba(245,158,11,.06)}.ui-core-role-task.ok strong{color:#6ee7b7}
+@media(max-width:1100px){.ui-core-role-today-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:650px){.ui-core-role-today-grid{display:flex;overflow-x:auto}.ui-core-role-task{min-width:165px}.ui-core-role-utility-row{justify-content:stretch;flex-wrap:wrap}.ui-core-role-role-wrap{justify-content:flex-start}.ui-core-role-popover{max-height:70vh;overflow:auto}}
+@media print{#ui-core-role-utility-row,#ui-core-role-role-wrap,.ui-core-role-today-work,.ui-core-role-dropdown,.ui-core-role-popover{display:none!important}}
+
+/* V137 canonical role preset matrix (admin staff screen) */
+.ui-core-role-role-matrix{margin:.75rem 0;padding:.75rem 1rem;border:1px solid rgba(99,102,241,.22);border-radius:1rem;background:rgba(15,23,42,.42);font-size:.75rem;color:#cbd5e1}
+.ui-core-role-role-matrix summary{cursor:pointer;font-weight:800;color:#e2e8f0;list-style:none}
+.ui-core-role-role-matrix summary::-webkit-details-marker{display:none}
+.ui-core-role-role-table-wrap{overflow:auto;margin-top:.75rem;border:1px solid rgba(255,255,255,.07);border-radius:.75rem}
+.ui-core-role-role-matrix table{width:100%;min-width:640px;border-collapse:collapse}
+.ui-core-role-role-matrix th,.ui-core-role-role-matrix td{padding:.55rem .65rem;text-align:left;vertical-align:top;border-bottom:1px solid rgba(255,255,255,.06)}
+.ui-core-role-role-matrix th{font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;background:rgba(2,6,23,.5)}
+.ui-core-role-role-matrix tbody tr:last-child td{border-bottom:0}
+.ui-core-role-role-matrix p{margin:.65rem 0 0;color:#94a3b8;font-size:.68rem}
+
+/* TAMASYA V137 - canonical professional operations/navigation.
+   Keeps React-owned operation buttons as the execution source and presents
+   a grouped proxy navigator to reduce cognitive load without duplicating logic. */
+/* AUDIT13: React-owned Module Hotel dock. Static CSS only; no runtime style injection. */
+#tamasya-module-dock{margin-top:10px;margin-bottom:12px;width:100%;font-family:inherit}
+#tamasya-module-dock .tmd-shell{position:relative;overflow:hidden;border:1px solid rgba(148,163,184,.16);border-radius:18px;background:linear-gradient(135deg,rgba(15,23,42,.96),rgba(2,6,23,.94));box-shadow:0 16px 40px rgba(2,6,23,.18)}
+#tamasya-module-dock .tmd-shell:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 15% 0%,rgba(16,185,129,.11),transparent 36%),radial-gradient(circle at 88% 10%,rgba(99,102,241,.09),transparent 32%)}
+#tamasya-module-dock .tmd-head{position:relative;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px 8px}
+#tamasya-module-dock .tmd-kicker{display:flex;align-items:center;gap:8px;color:#e2e8f0;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;flex:0 0 auto}
+#tamasya-module-dock .tmd-kicker-dot{width:8px;height:8px;border-radius:999px;background:#34d399;box-shadow:0 0 0 4px rgba(52,211,153,.10)}
+#tamasya-module-dock .tmd-heading{display:flex;flex:0 0 auto;align-items:center;flex-wrap:nowrap;gap:12px;min-width:0;max-width:100%}
+#tamasya-module-dock .tmd-grid{position:relative;display:flex;flex-wrap:wrap;gap:8px;padding:0 10px 10px}
+#tamasya-module-dock .tmd-grid>.tmd-card{flex:1 1 220px;box-sizing:border-box}
+@media (max-width:479px){#tamasya-module-dock .tmd-card{padding:12px 14px}}
+@media (max-width:479px){#tamasya-module-dock .tmd-sub{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:#94a3b8}}
+#tamasya-module-dock .tmd-card{min-width:0;display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:14px;border:1px solid rgba(148,163,184,.12);background:rgba(15,23,42,.72);text-decoration:none;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease;color:#e2e8f0}
+#tamasya-module-dock .tmd-card:hover{border-color:rgba(148,163,184,.28);background:rgba(30,41,59,.92);box-shadow:0 8px 20px rgba(2,6,23,.16)}
+#tamasya-module-dock button.tmd-card{width:100%;font:inherit;text-align:left}
+#tamasya-module-dock .tmd-card.tmd-locked{cursor:not-allowed;opacity:.72;border-color:rgba(245,158,11,.16);background:rgba(15,23,42,.58);box-shadow:none}
+#tamasya-module-dock .tmd-card.tmd-locked:hover{border-color:rgba(245,158,11,.16);background:rgba(15,23,42,.58);box-shadow:none}
+#tamasya-module-dock .tmd-card.tmd-locked .tmd-title{color:#cbd5e1}
+#tamasya-module-dock .tmd-card.tmd-locked .tmd-sub{color:#64748b}
+#tamasya-module-dock .tmd-lock{margin-left:auto;flex:0 0 auto;border:1px solid rgba(245,158,11,.45);background:rgba(245,158,11,.18);color:#fcd34d;border-radius:999px;padding:4px 9px;font-size:11px;line-height:1;font-weight:800;white-space:nowrap;letter-spacing:.03em;box-shadow:0 0 10px rgba(245,158,11,.15)}
+#tamasya-module-dock .tmd-icon{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;border-radius:12px;font-size:18px;border:1px solid rgba(255,255,255,.08)}
+#tamasya-module-dock .tmd-copy{min-width:0;display:flex;flex-direction:column;gap:2px}
+#tamasya-module-dock .tmd-title{font-size:12px;line-height:1.25;font-weight:800;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#tamasya-module-dock .tmd-sub{font-size:10px;line-height:1.25;font-weight:650;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#tamasya-module-dock .tmd-arrow{margin-left:auto;color:#64748b;font-size:14px;font-weight:900}
+#tamasya-module-dock .tmd-pos .tmd-icon{background:rgba(16,185,129,.13);color:#6ee7b7}
+#tamasya-module-dock .tmd-growth .tmd-icon{background:rgba(245,158,11,.13);color:#fcd34d}
+#tamasya-module-dock .tmd-enterprise .tmd-icon{background:rgba(99,102,241,.14);color:#a5b4fc}
+#tamasya-module-dock .tmd-heading>.tmd-header-memo{flex:0 1 200px;box-sizing:border-box;max-width:100%;gap:8px;padding:6px 10px;border-radius:11px}
+#tamasya-module-dock .tmd-header-memo .tmd-icon{width:28px;height:28px;flex-basis:28px;border-radius:9px;font-size:16px}
+#tamasya-module-dock .tmd-card:focus-visible{outline:2px solid #34d399;outline-offset:2px}
+@media(max-width:760px){
+  #tamasya-module-dock .tmd-grid>.tmd-card{flex-basis:100%}
+}
+
+#tamasya-module-dock .tmd-head{min-height:54px;flex-wrap:nowrap}
+#tamasya-module-dock .tmd-head>.tmd-caption{display:none}
+#tamasya-module-dock .tmd-head>#ui-core-role-utility-row.ui-core-role-utility-in-dock{
+  flex:1 1 auto;min-width:0;min-height:0;margin:0 0 0 auto;padding:0;display:flex;align-items:center;justify-content:flex-end;gap:8px
+}
+#tamasya-module-dock .tmd-head>#ui-core-role-utility-row .ui-core-role-role-wrap{margin:0;flex:0 0 auto}
+#tamasya-module-dock .tmd-head>#ui-core-role-utility-row #ui-guest-center-search-launch{margin:0;flex:0 1 330px;min-width:210px}
+#tamasya-module-dock .tmd-head>#ui-core-role-utility-row #ui-guest-center-search-launch>button{width:100%;min-width:0;background:rgba(2,6,23,.50)}
+
+@media(max-width:1100px){
+  #tamasya-module-dock .tmd-head{align-items:flex-start;flex-wrap:wrap}
+  #tamasya-module-dock .tmd-head>#ui-core-role-utility-row.ui-core-role-utility-in-dock{flex:1 1 100%;width:100%;margin-left:0;justify-content:stretch}
+  #tamasya-module-dock .tmd-head>#ui-core-role-utility-row #ui-guest-center-search-launch{flex:1 1 auto;min-width:0}
+}
+@media(max-width:560px){
+  #tamasya-module-dock .tmd-head>#ui-core-role-utility-row.ui-core-role-utility-in-dock{display:grid;grid-template-columns:1fr auto}
+  #tamasya-module-dock .tmd-head>#ui-core-role-utility-row #ui-guest-center-search-launch{min-width:0}
+}
+
+
+
+
+/* R3 UAT operational action affordance. UI-only: no business-state mutation.
+   Any real action rendered inside Operasional gets a keyboard focus target;
+   legacy text-only actions get an explicit bordered button shell. */
+:is(html,body)[data-tamasya-route="operations"] .ui-core-ops-click-target{
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+:is(html,body)[data-tamasya-route="operations"] .ui-core-ops-click-target:focus-visible{
+  outline:2px solid rgba(56,189,248,.92)!important;
+  outline-offset:2px;
+}
+:is(html,body)[data-tamasya-route="operations"] .ui-core-ops-click-target-boxed:not(:disabled):active{
+  transform:translateY(1px);
+}
+:is(html,body)[data-tamasya-route="operations"] .ui-core-ops-click-target-boxed{
+  display:inline-flex!important;
+  align-items:center;
+  justify-content:center;
+  min-height:32px;
+  padding:7px 11px!important;
+  border:1px solid rgba(245,158,11,.40)!important;
+  border-radius:10px!important;
+  background:rgba(245,158,11,.10)!important;
+  color:#fcd34d!important;
+  font-weight:800!important;
+  line-height:1.15;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.035),0 3px 10px rgba(2,6,23,.12);
+  transition:background .14s ease,border-color .14s ease,box-shadow .14s ease,transform .08s ease;
+}
+:is(html,body)[data-tamasya-route="operations"] .ui-core-ops-click-target-boxed:not(:disabled):hover{
+  border-color:rgba(251,191,36,.68)!important;
+  background:rgba(245,158,11,.18)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 5px 14px rgba(2,6,23,.16);
+}
+:is(html,body)[data-tamasya-route="operations"] .ui-core-ops-click-target:disabled{
+  cursor:not-allowed!important;
+  opacity:.48;
+}
+
+
+/* ROOT9 -- single tax-rule layout authority.
+   Previous releases carried two competing responsive blocks; the >=1100px
+   branch expanded each rule into five horizontal columns. Keep one compact
+   semantic layout at every desktop width so tax administration remains easy
+   to scan without changing tax rules or tax calculations. */
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  gap:6px 10px;
+  align-items:center;
+  min-width:0;
+  max-width:100%;
+  padding:10px 12px!important;
+  background:rgba(2,6,23,.22);
+}
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>*{
+  min-width:0;
+  max-width:100%;
+}
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>div:first-child p{
+  margin:0;
+}
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>div:first-child p:last-child{
+  margin-top:2px;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  line-height:1.3;
+}
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>p{
+  margin:0;
+  white-space:normal;
+  line-height:1.3;
+}
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-actions{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-start;
+  align-items:center;
+  gap:5px;
+  min-width:0;
+}
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-action{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:28px;
+  padding:4px 8px!important;
+  border-radius:8px!important;
+  white-space:nowrap;
+  font-weight:750;
+  line-height:1.15;
+}
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-action-edit{
+  color:#7dd3fc!important;
+  border-color:rgba(56,189,248,.28)!important;
+  background:rgba(14,165,233,.08)!important;
+}
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-action-toggle{
+  color:#fcd34d!important;
+  border-color:rgba(245,158,11,.30)!important;
+  background:rgba(245,158,11,.08)!important;
+}
+@media(min-width:700px){
+  :is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row{
+    grid-template-columns:minmax(240px,1fr) auto auto;
+    gap:5px 12px;
+  }
+  :is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>div:first-child{grid-column:1;grid-row:1}
+  :is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>p{grid-column:1;grid-row:2;color:#94a3b8}
+  :is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>:nth-child(3){grid-column:2;grid-row:1;justify-self:end}
+  :is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>:nth-child(4){grid-column:3;grid-row:1;justify-self:end}
+  :is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-actions{
+    grid-column:2/4;
+    grid-row:2;
+    justify-content:flex-end;
+    flex-wrap:nowrap;
+  }
+}
+
+/* ROOT8 -- native React Operations grouping.
+   Structure is rendered by app-core React; ui-core does not clone/hide/forward operation buttons. */
+.tamasya-operations-native-groups{align-items:start}
+.tamasya-operations-native-group{box-shadow:inset 0 1px 0 rgba(255,255,255,.025)}
+.tamasya-operations-native-group-daily{background:linear-gradient(145deg,rgba(16,185,129,.045),rgba(2,6,23,.34))}
+.tamasya-operations-native-group-control{background:linear-gradient(145deg,rgba(14,165,233,.045),rgba(2,6,23,.34))}
+.tamasya-operations-native-group-finance{background:linear-gradient(145deg,rgba(245,158,11,.035),rgba(2,6,23,.34))}
+.tamasya-operations-native-group-system{background:rgba(2,6,23,.27)}
+.tamasya-operations-native-group-mark{width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;border-radius:9px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035)}
+.tamasya-operations-native-group-mark:before{font-size:12px;font-weight:900;color:#94a3b8}
+.tamasya-operations-native-group-mark-daily:before{content:'\25C9';color:#6ee7b7}.tamasya-operations-native-group-mark-daily{background:rgba(16,185,129,.10);border-color:rgba(16,185,129,.15)}
+.tamasya-operations-native-group-mark-control:before{content:'\2713';color:#7dd3fc}.tamasya-operations-native-group-mark-control{background:rgba(14,165,233,.10);border-color:rgba(14,165,233,.15)}
+.tamasya-operations-native-group-mark-finance:before{content:'Rp';color:#fde68a}.tamasya-operations-native-group-mark-finance{background:rgba(245,158,11,.09);border-color:rgba(245,158,11,.14)}
+.tamasya-operations-native-group-mark-system:before{content:'\2699';color:#94a3b8}
+.tamasya-operations-native-action{min-height:42px}
+@media(max-width:639px){.tamasya-operations-native-group{padding:10px!important}.tamasya-operations-native-action{min-height:40px}}
+
+/* ROOT8 top dropdown: intentionally compact. It must never inherit the amber
+   operational-action affordance used inside the Operations content area. */
+body .ui-core-nav-dropdown{padding:5px!important;border-radius:11px!important;background:#0b1220!important;box-shadow:0 14px 34px rgba(2,6,23,.48)!important}
+body .ui-core-nav-dropdown .ui-core-nav-dropdown-item{
+  min-height:32px!important;padding:7px 9px!important;border:0!important;border-radius:7px!important;
+  background:transparent!important;color:#cbd5e1!important;box-shadow:none!important;font-size:11px!important;font-weight:700!important
+}
+body .ui-core-nav-dropdown .ui-core-nav-dropdown-item:hover{background:rgba(255,255,255,.055)!important;color:#f8fafc!important}
+body .ui-core-nav-dropdown .ui-core-nav-dropdown-item[data-active="true"]{background:rgba(16,185,129,.10)!important;color:#a7f3d0!important}
+
+/* FIX21 -- presentation-only business-domain navigation.
+   React/API remain the execution and authorization authority. */
+.ui-core-domain-moved-section,
+.ui-core-domain-moved-action { display:revert; }
+.ui-core-domain-context {
+  margin:0 0 12px;
+  padding:9px 12px;
+  border:1px solid rgba(56,189,248,.22);
+  border-radius:12px;
+  background:rgba(14,165,233,.07);
+  color:#bae6fd;
+  font-size:11px;
+  line-height:1.45;
+}
+.ui-core-domain-context:empty { display:none; }
+.ui-core-domain-context-target {
+  outline:2px solid rgba(56,189,248,.28) !important;
+  outline-offset:3px;
+}
+
+
+/* FIX22 -- true Master Data workspace. Configuration is separated from Log Kas. */
+.ui-core-inline-catalog-create-hidden{display:none!important}
+body.ui-master-workspace-open{overflow:hidden!important}
+.ui-master-workspace[hidden]{display:none!important}
+.ui-master-workspace{position:fixed;inset:0;z-index:155;background:#07101f;color:#e5e7eb;overflow:auto;font-family:inherit}
+.ui-master-shell{min-height:100%;display:flex;flex-direction:column;background:radial-gradient(circle at 15% 0%,rgba(30,64,175,.12),transparent 33%),#07101f}
+.ui-master-header{position:sticky;top:0;z-index:4;padding:18px clamp(16px,3vw,36px);border-bottom:1px solid rgba(148,163,184,.16);background:rgba(7,16,31,.96)}
+.ui-master-breadcrumb{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#64748b}.ui-master-breadcrumb span{padding:0 6px;color:#334155}
+.ui-master-header-row{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-top:8px}.ui-master-header h1{margin:0;color:#f8fafc;font-size:clamp(21px,2.6vw,30px);line-height:1.1}.ui-master-header p{margin:6px 0 0;color:#94a3b8;font-size:12px}
+.ui-master-close{border:1px solid rgba(148,163,184,.2);border-radius:11px;background:rgba(255,255,255,.045);color:#cbd5e1;padding:9px 12px;font:800 11px inherit;cursor:pointer}.ui-master-close:hover{background:rgba(255,255,255,.08);color:#fff}
+.ui-master-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:16px clamp(16px,3vw,36px) 0}.ui-master-summary>div{padding:13px 14px;border:1px solid rgba(148,163,184,.12);border-radius:14px;background:rgba(15,23,42,.72)}.ui-master-summary strong{display:block;color:#f8fafc;font-size:22px}.ui-master-summary span{color:#64748b;font-size:10px;font-weight:750}
+.ui-master-grid{display:grid;grid-template-columns:minmax(260px,340px) minmax(0,1fr);gap:14px;flex:1;padding:14px clamp(16px,3vw,36px) 24px}
+.ui-master-sidebar,.ui-master-detail{border:1px solid rgba(148,163,184,.13);border-radius:17px;background:rgba(15,23,42,.68);min-height:520px}.ui-master-sidebar{padding:12px;display:flex;flex-direction:column;min-width:0}.ui-master-detail{padding:20px;overflow:hidden}
+.ui-master-toolbar{display:grid;gap:9px}.ui-master-filter-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:3px;border-radius:10px;background:rgba(2,6,23,.55)}.ui-master-filter-tabs button{border:0;border-radius:8px;background:transparent;color:#64748b;padding:7px 6px;font:800 10px inherit;cursor:pointer}.ui-master-filter-tabs button.active{background:#1e293b;color:#e2e8f0}.ui-master-toolbar input,.ui-master-dialog input,.ui-master-dialog select{width:100%;box-sizing:border-box;border:1px solid rgba(148,163,184,.18);border-radius:10px;background:#0b1323;color:#e2e8f0;padding:9px 10px;font:650 11px inherit;outline:none}.ui-master-toolbar input:focus,.ui-master-dialog input:focus,.ui-master-dialog select:focus{border-color:rgba(96,165,250,.6);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+.ui-master-add-category{margin:10px 0;border:1px solid rgba(52,211,153,.25);border-radius:10px;background:rgba(16,185,129,.09);color:#a7f3d0;padding:9px 10px;font:850 11px inherit;cursor:pointer}.ui-master-add-category:hover{background:rgba(16,185,129,.14)}
+.ui-master-category-list{display:grid;gap:6px;overflow:auto;padding-right:2px}.ui-master-category-row{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:8px!important;width:100%!important;min-height:52px!important;border:1px solid rgba(148,163,184,.1)!important;border-radius:11px!important;background:rgba(2,6,23,.32)!important;padding:8px 9px!important;color:#cbd5e1!important;text-align:left!important;cursor:pointer!important}.ui-master-category-row:hover{border-color:rgba(148,163,184,.24)!important;background:rgba(255,255,255,.035)!important}.ui-master-category-row.active{border-color:rgba(96,165,250,.32)!important;background:rgba(59,130,246,.09)!important}.ui-master-category-row.income.active{border-color:rgba(52,211,153,.35)!important;background:rgba(16,185,129,.07)!important}.ui-master-category-row.expense.active{border-color:rgba(251,146,60,.35)!important;background:rgba(249,115,22,.065)!important}.ui-master-category-main{min-width:0}.ui-master-category-main strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.ui-master-category-main small{display:block;margin-top:3px;color:#64748b;font-size:9px}.ui-master-usage-badge{max-width:125px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid rgba(167,139,250,.2);border-radius:999px;background:rgba(124,58,237,.09);color:#c4b5fd;padding:4px 6px;font-size:8px;font-weight:800}
+.ui-master-empty{padding:22px 12px;text-align:center;color:#64748b;font-size:11px;line-height:1.5}.ui-master-empty.compact{padding:14px}.ui-master-detail-empty{height:100%;min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#64748b}.ui-master-detail-empty h3{margin:7px 0 3px;color:#cbd5e1}.ui-master-detail-empty p{max-width:420px;margin:0;font-size:11px}.ui-master-empty-icon{font-size:30px;color:#334155}
+.ui-master-detail-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:18px;border-bottom:1px solid rgba(148,163,184,.11)}.ui-master-detail-head h2{margin:8px 0 5px;color:#f8fafc;font-size:21px}.ui-master-detail-head p{margin:0;color:#64748b;font-size:10px}.ui-master-type-pill{display:inline-flex;border-radius:999px;padding:4px 8px;font-size:9px;font-weight:900}.ui-master-type-pill.income{background:rgba(16,185,129,.1);color:#6ee7b7}.ui-master-type-pill.expense{background:rgba(249,115,22,.1);color:#fdba74}
+.ui-master-row-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}.ui-master-row-actions button,.ui-master-section-head>button{border:1px solid rgba(148,163,184,.16);border-radius:9px;background:rgba(255,255,255,.035);color:#cbd5e1;padding:7px 9px;font:800 9.5px inherit;cursor:pointer}.ui-master-row-actions button:hover,.ui-master-section-head>button:hover{background:rgba(255,255,255,.07)}.ui-master-row-actions button.danger,.ui-master-dialog-actions button.danger{border-color:rgba(248,113,113,.22);color:#fca5a5;background:rgba(239,68,68,.055)}.ui-master-section-head>button.primary,.ui-master-dialog-actions button.primary{border-color:rgba(52,211,153,.28);background:rgba(16,185,129,.11);color:#a7f3d0}
+.ui-master-section{margin-top:16px;padding:15px;border:1px solid rgba(148,163,184,.1);border-radius:14px;background:rgba(2,6,23,.22)}.ui-master-section-head{display:flex;justify-content:space-between;align-items:center;gap:14px}.ui-master-section-head h3{margin:0;color:#e2e8f0;font-size:13px}.ui-master-section-head p{margin:4px 0 0;color:#64748b;font-size:9.5px;line-height:1.45}
+.ui-master-binding-set,.ui-master-binding-none{margin-top:12px;padding:11px 12px;border-radius:11px}.ui-master-binding-set{border:1px solid rgba(167,139,250,.19);background:rgba(124,58,237,.065)}.ui-master-binding-set span{display:block;color:#8b5cf6;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.07em}.ui-master-binding-set strong{display:block;margin-top:2px;color:#ddd6fe;font-size:12px}.ui-master-binding-set p,.ui-master-binding-none p{margin:4px 0 0;color:#64748b;font-size:9px;line-height:1.45}.ui-master-binding-none{border:1px dashed rgba(148,163,184,.16);color:#94a3b8}.ui-master-binding-none strong{font-size:10px}
+.ui-master-sub-list{display:grid;gap:6px;margin-top:12px}.ui-master-sub-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 10px;border:1px solid rgba(148,163,184,.09);border-radius:10px;background:rgba(15,23,42,.5)}.ui-master-sub-row strong{font-size:10.5px;color:#cbd5e1}.ui-master-sub-row small{display:block;margin-top:2px;color:#64748b;font-size:8px}
+.ui-master-footer{display:flex;justify-content:space-between;gap:12px;padding:10px clamp(16px,3vw,36px);border-top:1px solid rgba(148,163,184,.1);color:#475569;font-size:9px}.ui-master-footer [data-master-status]{color:#94a3b8;font-weight:800}
+.ui-master-loading{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:#64748b}.ui-master-loading strong{color:#e2e8f0}.ui-master-loading span{font-size:11px}.ui-master-loading.error button{margin-top:10px;border:1px solid rgba(148,163,184,.2);border-radius:9px;background:#111827;color:#e2e8f0;padding:8px 11px;cursor:pointer}.ui-master-spinner{width:30px;height:30px;border:3px solid rgba(148,163,184,.16);border-top-color:#60a5fa;border-radius:50%;animation:ui-master-spin .75s linear infinite}@keyframes ui-master-spin{to{transform:rotate(360deg)}}
+.ui-master-dialog-layer{position:fixed;inset:0;z-index:165;display:grid;place-items:center;padding:18px}.ui-master-dialog-layer[hidden]{display:none!important}.ui-master-dialog-backdrop{position:absolute;inset:0;background:rgba(2,6,23,.72)}.ui-master-dialog{position:relative;width:min(560px,100%);max-height:min(86vh,720px);overflow:auto;border:1px solid rgba(148,163,184,.19);border-radius:16px;background:#0b1323;box-shadow:0 22px 64px rgba(0,0,0,.48)}.ui-master-dialog-head{padding:16px 17px 10px}.ui-master-dialog-head h3{margin:0;color:#f8fafc;font-size:16px}.ui-master-dialog-head p{margin:5px 0 0;color:#94a3b8;font-size:10px;line-height:1.45}.ui-master-dialog-body{display:grid;gap:12px;padding:8px 17px 15px}.ui-master-dialog-body>label>span,.ui-master-choice-field>span{display:block;margin-bottom:5px;color:#cbd5e1;font-size:10px;font-weight:800}.ui-master-dialog-body label small{display:block;margin-top:4px;color:#64748b;font-size:8.5px}.ui-master-dialog-actions{display:flex;justify-content:flex-end;gap:7px;padding:11px 17px 15px;border-top:1px solid rgba(148,163,184,.09)}.ui-master-dialog-actions button{border:1px solid rgba(148,163,184,.18);border-radius:9px;background:rgba(255,255,255,.04);color:#cbd5e1;padding:8px 11px;font:800 10px inherit;cursor:pointer}.ui-master-choice-list{display:grid;gap:7px}.ui-master-choice{display:flex!important;align-items:flex-start!important;gap:9px!important;padding:9px 10px!important;border:1px solid rgba(148,163,184,.12)!important;border-radius:10px!important;background:rgba(2,6,23,.32)!important;cursor:pointer!important}.ui-master-choice input{width:auto!important;margin-top:3px}.ui-master-choice strong{display:block;color:#e2e8f0;font-size:10px}.ui-master-choice small{display:block!important;margin-top:3px!important;color:#64748b!important;font-size:8.5px!important;line-height:1.4}
+.ui-master-toast{position:fixed;z-index:175;right:20px;bottom:20px;max-width:min(420px,calc(100vw - 40px));padding:10px 12px;border-radius:11px;border:1px solid rgba(52,211,153,.25);background:#08261d;color:#a7f3d0;box-shadow:0 14px 40px rgba(0,0,0,.3);font-size:10px;font-weight:800}.ui-master-toast.error{border-color:rgba(248,113,113,.28);background:#2a1014;color:#fecaca}.ui-master-toast[hidden]{display:none!important}
+.ui-master-workspace.is-busy .ui-master-shell{pointer-events:none;opacity:.82}
+@media(max-width:900px){.ui-master-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.ui-master-grid{grid-template-columns:1fr}.ui-master-sidebar{min-height:0}.ui-master-category-list{max-height:320px}.ui-master-detail{min-height:0}}
+@media(max-width:600px){.ui-master-header-row,.ui-master-detail-head,.ui-master-section-head,.ui-master-footer{align-items:stretch;flex-direction:column}.ui-master-summary{grid-template-columns:1fr 1fr}.ui-master-grid{padding-left:10px;padding-right:10px}.ui-master-header{padding-left:12px;padding-right:12px}.ui-master-detail{padding:13px}.ui-master-row-actions{justify-content:flex-start}}
+@media print{.ui-master-workspace{display:none!important}}
+
+
+/* ============================================================
+   FIX40 -- UI POLISH (presentation only; no behavior change)
+   1) Global proportional readability scale (rem-based layout
+      scales together; nothing is repositioned or removed).
+   2) "Mesin Aturan Pajak Dinamis" restyle: clear hierarchy
+      (name > meta > period), prominent rate/status pills,
+      readable action buttons, tidy mobile grid.
+   ============================================================ */
+
+/* FIX40-1 -- global scale: root 16px -> 17px (desktop), 17.5px (mobile). */
+html{font-size:106.25%}
+@media(max-width:640px){html{font-size:109%}}
+
+/* FIX40-2 -- tax rules rows: card hierarchy and breathing room. */
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row{
+  padding:14px 16px!important;
+  border-radius:14px!important;
+  border-color:#2b3a55!important;
+  background:linear-gradient(150deg,rgba(30,41,59,.5),rgba(2,6,23,.34))!important;
+}
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>div:first-child p:first-child{
+  font-size:14.5px!important;
+  font-weight:650!important;
+  color:#e2e8f0!important;
+  letter-spacing:.01em;
+}
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>div:first-child p:last-child{
+  margin-top:3px!important;
+  font-size:12px!important;
+  color:#94a3b8!important;
+  letter-spacing:.02em;
+  line-height:1.45;
+}
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>p{
+  font-size:12.5px!important;
+  color:#a5b4cb!important;
+}
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>p::before{
+  content:'Berlaku ';
+  color:#64748b;
+  font-size:10.5px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.07em;
+  margin-right:6px;
+}
+/* Rate and status pills (fixed render order: 1 name block, 2 period, 3 rate, 4 status, 5 actions). */
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>:nth-child(3),
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>:nth-child(4){
+  display:inline-flex!important;
+  align-items:center!important;
+  min-height:26px!important;
+  padding:4px 12px!important;
+  border-radius:999px!important;
+  font-size:12px!important;
+  font-weight:750!important;
+  white-space:nowrap!important;
+}
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-actions{
+  gap:7px;
+}
+:is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-action{
+  min-height:32px!important;
+  padding:6px 12px!important;
+  border-radius:9px!important;
+  font-size:12.5px!important;
+}
+/* Mobile: badges share one row instead of stacking. */
+@media(max-width:699px){
+  :is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row{
+    grid-template-columns:auto minmax(0,1fr);
+    row-gap:9px;
+    padding:13px 14px!important;
+  }
+  :is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>div:first-child{grid-column:1/-1;grid-row:1}
+  :is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>p{grid-column:1/-1;grid-row:2}
+  :is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>:nth-child(3){grid-column:1;grid-row:3;justify-self:start}
+  :is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row>:nth-child(4){grid-column:2;grid-row:3;justify-self:end}
+  :is(html,body)[data-tamasya-route="operations"] .tamasya-tax-rule-row .tamasya-tax-rule-actions{grid-column:1/-1;grid-row:4;flex-wrap:wrap}
+}
+
+/* FIX40-3 -- readability floor for the smallest fixed-size UI text. */
+.ui-core-domain-context{font-size:12px}
+
+/* ============================================================
+   FIX40b — polish corrections after visual test feedback
+   1) Route-scoped rules now actually match: the app sets
+      data-tamasya-route on <html> (documentElement), not <body>.
+      All 38 selectors above were retargeted via :is(html,body).
+      This activates the intended desktop layout of the tax rules
+      screen (name left / rate+status pills right / actions right),
+      fixing the "everything hugs the left edge" report.
+   2) Filter toolbar tidy-up (the "Semua Tipe / Semua Kategori"
+      select cluster next to "Buku Kas & Log Transaksi" and its
+      two siblings): consistent heights, padding, radius, and
+      neat wrapping. Applies to the same signature in finance,
+      operations, and report views only.
+   ============================================================ */
+.flex.flex-wrap.gap-2.text-xs{
+  align-items:center;
+  row-gap:8px;
+}
+.flex.flex-wrap.gap-2.text-xs>select{
+  min-height:38px;
+  min-width:150px;
+  max-width:100%;
+  padding:8px 12px;
+  font-size:12.5px;
+  line-height:1.25;
+  border-radius:10px;
+  background:#0b1323;
+  border-color:#33415566;
+  color:#e2e8f0;
+}
+.flex.flex-wrap.gap-2.text-xs>select:hover{border-color:#64748b99}
+.flex.flex-wrap.gap-2.text-xs>select:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px #6366f126}
+
+/* ============================================================
+   FIX40d — tall dialogs must stay fully reachable
+   The app's modal overlays use flex items-center/justify-center
+   with overflow-y-auto. When a dialog is taller than the viewport
+   (e.g. the tax rule edit form after the readability scale-up),
+   classic flex centering pushes its top edge out of scroll reach,
+   so its top appears hidden beneath the fixed top bar
+   (logout / server status / notifications strip).
+   "safe center" keeps dialogs centered when they fit and
+   top-aligned when they do not, making the top reachable again.
+   Browsers without "safe" support fall back to the margin:auto
+   technique, which achieves the same result everywhere.
+   ============================================================ */
+.fixed.inset-0.items-center{align-items:safe center}
+.fixed.inset-0.justify-center{justify-content:safe center}
+@supports not (align-items:safe center){
+  .fixed.inset-0.items-center{align-items:flex-start}
+  .fixed.inset-0.items-center>*{margin:auto}
+}
+/* Short viewports (laptops / remote desktop windows): trim the
+   readability scale slightly so tall dialogs fit comfortably. */
+@media(max-height:820px){html{font-size:104%}}
+
+/* FIX40e — hard guarantee: a centered dialog can never be taller
+   than the viewport, so its top edge (title, first fields) always
+   stays visible beneath the fixed top bar; overflow scrolls inside
+   the page-level overlay. */
+.fixed.inset-0.items-center>*{max-height:calc(100vh - 2rem)}
+
+/* FIX42 — owner reversal of FIX40f: the top bar is sticky again so the
+   hotel name, server status and the notification bell stay reachable
+   while scrolling. Every fullscreen dialog overlay in the app already
+   stacks above it (z-50 up to z-130 vs header z-40), and the FIX40e
+   height cap above keeps tall dialogs fully visible below the bar. */
+
+/* FIX43 — root cause of "dialog appears behind the top bar": <main> carries
+   Tailwind's z-10 and, as a flex item, that z-index creates a stacking
+   context that traps EVERY fullscreen dialog rendered inside the page
+   (z-50..z-130) below the sticky header (z-40). Neutralize the trap so
+   dialogs compete with the header in the root stacking context, and pin
+   the decorative glow orbs behind the content via a negative z-index so
+   the visual layering stays identical. */
+main.z-10 { z-index: auto; }
+.app-orb { z-index: -1; }
+
+
+#tamasya-module-dock .tmd-memo .tmd-icon{background:rgba(236,72,153,.12);color:#f9a8d4}
+
+@media(max-width:560px){#tamasya-module-dock .tmd-heading{flex-wrap:wrap;width:100%}}

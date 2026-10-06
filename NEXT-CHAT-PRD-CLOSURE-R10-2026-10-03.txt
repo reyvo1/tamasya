@@ -1,0 +1,36 @@
+Continue TAMASYA from PRD Closure R10.
+
+Exact parent used for R10:
+f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+
+R9 GitHub run:
+37100900748
+check suite 100495794667
+
+Known R9 state:
+- source/security GREEN
+- hotel/business 731/731 PASS
+- Playwright 34/34 PASS
+- SaaS/realtime/HQ DB bootstrap GREEN
+- failure only at first HQ outbound private-TLS delivery:
+  status=uncertain code=ACK_NOT_VERIFIED
+
+R10 fixes production outbound TLS trust:
+- explicit optional caFile for delivery bridge and object storage
+- CURLOPT_CAINFO used directly
+- peer+hostname verification remain strict
+- exact ACK remains strict
+- 202/wrong ACK remain uncertain
+- missing private CA fails closed
+- diagnostic codes are more precise
+- UAT is not weakened
+
+If GitHub R10 is all GREEN:
+1. identify exact green commit SHA/run,
+2. freeze that exact source,
+3. create TAMASYA PRD SOFTWARE FINAL full ZIP,
+4. create SHA-256, final As-Built, final audit, HANDOFF and NEXT-CHAT,
+5. do not alter tested source merely to rename it.
+
+If red:
+use exact logs and fix the first new evidence-backed root cause without weakening any green gate.

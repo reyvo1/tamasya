@@ -1,0 +1,7 @@
+TAMASYA PRD Closure R6 handoff
+Parent: 321e42daa59eb491e3774dfddbce1d650344b689
+Branch: rc1/post-green-owner-harness-v2
+R5 PRD failure root: DML-only runtime queried information_schema.TRIGGERS and saw 0 because TRIGGER metadata is privilege-filtered; same run separately proved 5 canonical triggers and 5 restored triggers.
+R5 browser failure root: generic static wiring sweep used mutable button:nth(i) locators while Internal Memo mutations re-rendered the list; 33/34 browser tests passed and the dedicated Internal Memo create/search/archive/restore test passed.
+R6 fixes both roots without granting TRIGGER/SUPER/DDL to runtime and without weakening browser/business UAT. Migration authority now verifies exact table+trigger signatures before runtime user creation; browser sweep snapshots ElementHandles.
+If R6 GitHub all GREEN: freeze exact GREEN commit as TAMASYA PRD SOFTWARE FINAL and produce final source ZIP + SHA-256 + PRD As-Built FINAL + HANDOFF + NEXT-CHAT. If RED: root-fix first new failure only; do not weaken gates.

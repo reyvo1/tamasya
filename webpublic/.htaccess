@@ -1,0 +1,31 @@
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP:X-Forwarded-Proto} !https [NC]
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} \.(?:php|js|mjs|css|json|map|webmanifest|xml|txt|csv|xlsx|pdf|png|jpe?g|gif|svg|ico|woff2?|ttf)$ [NC]
+RewriteRule ^ - [R=404,L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . index.html [L]
+</IfModule>
+Options -Indexes
+<IfModule mod_headers.c>
+<FilesMatch "^index\.html$">
+Header set Cache-Control "no-cache, no-store, must-revalidate"
+Header set Pragma "no-cache"
+Header set Expires 0
+</FilesMatch>
+Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
+Header set X-Content-Type-Options "nosniff"
+Header set X-Frame-Options "SAMEORIGIN"
+Header set Referrer-Policy "strict-origin-when-cross-origin"
+Header set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+# TAMASYA_API_ORIGIN: https://app.nolink.my.id — prefer admin/tamasya_configurator.php; legacy Node/public_config_tool.php remain supported when domains change.
+Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https:; connect-src 'self' https://app.nolink.my.id; frame-src https://google.com https://www.google.com https://maps.google.com; manifest-src 'self'"
+</IfModule>
+<FilesMatch "^\.(?:env|git)">
+Require all denied
+</FilesMatch>

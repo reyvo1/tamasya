@@ -1,0 +1,8 @@
+# Public Website CMS media may be embedded by the separate public-site origin.
+# The Admin/API origin keeps CORP same-origin globally; only this intentionally
+# public media subtree relaxes it to cross-origin.
+Options -Indexes
+<IfModule mod_headers.c>
+    Header always set Cross-Origin-Resource-Policy "cross-origin"
+    Header always set Access-Control-Allow-Origin "*"
+</IfModule>

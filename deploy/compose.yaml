@@ -1,0 +1,78 @@
+name: ${TAMASYA_STACK:?Set a unique property stack name}
+
+x-state-volume: &state-volume
+  type: volume
+  source: state
+  target: /var/lib/tamasya
+  volume:
+    nocopy: true
+
+x-uploads-volume: &uploads-volume
+  type: volume
+  source: uploads
+  target: /var/www/tamasya/uploads
+  volume:
+    nocopy: true
+
+x-api: &api
+  image: ${TAMASYA_IMAGE:-tamasya-enterprise:local}
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp]
+  env_file: ${TAMASYA_PRIVATE_DIR:?Set absolute private directory}/runtime.env
+  volumes:
+    - ${TAMASYA_PRIVATE_DIR}/db_credentials.php:/run/secrets/db_credentials.php:ro
+    - *uploads-volume
+    - *state-volume
+  depends_on:
+    storage-init:
+      condition: service_completed_successfully
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
+
+services:
+  storage-init:
+    image: ${TAMASYA_IMAGE:-tamasya-enterprise:local}
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    user: "0:0"
+    restart: "no"
+    read_only: true
+    tmpfs: [/tmp]
+    command: [/usr/local/bin/tamasya-storage-init]
+    volumes:
+      - *uploads-volume
+      - *state-volume
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+
+  api: *api
+
+  worker:
+    <<: *api
+    profiles: [workers]
+    command: [php, service_worker.php, daemon]
+
+  web:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    ports: ["127.0.0.1:${TAMASYA_HTTP_PORT:-8080}:8080"]
+    volumes:
+      - ..:/var/www/tamasya:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - <<: *uploads-volume
+        read_only: true
+    depends_on:
+      storage-init:
+        condition: service_completed_successfully
+      api:
+        condition: service_started
+
+volumes:
+  uploads: {}
+  state: {}

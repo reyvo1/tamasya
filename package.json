@@ -1,0 +1,10 @@
+{
+  "name": "tamasya-enterprise-rc1-uat",
+  "private": true,
+  "scripts": {
+    "test:browser": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.2"
+  }
+}

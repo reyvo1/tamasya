@@ -1,0 +1,61 @@
+TAMASYA PRD CLOSURE R9 — ROOT CAUSE AUDIT
+Date: 2026-10-03
+Exact parent: d698c66710fe86c51a849054009a20bed727e832
+GitHub run: 37099321998 / check suite 100491665851
+
+R8 EVIDENCE
+- Source/syntax/security: PASS
+- Business UAT: 731/731 PASS, 0 FAIL
+- Playwright: 34/34 PASS
+- SaaS runtime authority/scale/storage/restart/replica-loss: PASS
+- Realtime real-process smoke: PASS
+- HQ schema import + authority verification: PASS (7 tables, 0 triggers)
+- Failure: hq_external_adapters.php required /opt/hq/delivery.php and exited 255 before adapter assertions.
+
+ROOT CAUSE
+Production Docker image intentionally excludes tests. Workflow mounted tests at /opt/tamasya-tests while application source remained /var/www/tamasya. The harness inferred application root from its own relocated path using dirname(__DIR__,2), producing /opt instead of /var/www/tamasya. This was a test-runtime packaging contract defect, not a hotel/HQ business-code failure.
+
+R9 FIX
+- explicit TAMASYA_TEST_APP_ROOT contract
+- manifest-covered source-root resolver
+- SHA-256 verification of HQ dependency files before require
+- tests-only mount rejected
+- manifest mismatch rejected
+- production image remains test-free
+- external adapter container read-only, tmpfs /tmp, cap-drop ALL, no-new-privileges
+- built image lints HQ runtime files
+- dedicated regression added to source gate and post-runtime guard
+
+NO UAT WEAKENING
+No assertion removed, no expected output changed, no timeout increased, no skip introduced, no DB privilege broadened, and no adapter ACK/object checksum check removed.
+
+LOCAL DETERMINISTIC RESULT
+- PHP regression 68/68 PASS
+- JS regression 21/21 PASS
+- Finance 9/9 PASS
+- Hybrid 33/33 PASS
+- Realtime 16/16 PASS
+- PRD architecture 5/5 PASS
+- PRD performance 7/7 PASS
+- PRD deployment 7/7 PASS
+- PRD scale 7/7 PASS
+- PRD storage 7/7 PASS
+- DB readiness 8/8 PASS
+- DB authority 11/11 PASS
+- trigger metadata 5/5 PASS
+- browser harness 5/5 PASS
+- runtime schema authority 6/6 PASS
+- provisioning attestation 5/5 PASS
+- runtime config 4/4 PASS
+- external adapter path 6/6 PASS
+- schema authority parser/profile 6/6 PASS
+- POS business date 7/7 PASS
+- device contract 9 PASS
+- database TLS 4 PASS
+- PHP lint 132 files PASS
+- JS/MJS syntax 82 files PASS
+- Python compile PASS
+- shell syntax PASS
+- workflow YAML PASS
+
+Docker/MySQL/TLS adapter runtime remains the GitHub evidence gate because Docker is unavailable in this execution environment.

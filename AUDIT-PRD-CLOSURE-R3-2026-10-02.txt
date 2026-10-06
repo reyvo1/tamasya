@@ -1,0 +1,59 @@
+TAMASYA PRD CLOSURE R3 — ROOT-CAUSE / MACRO-WAVE AUDIT
+Date: 2026-10-02
+
+PARENT
+- R2 GitHub commit: 93311195790b17730dbee0199b5e66825e15dd4f
+- Existing branch/repository only; no new repo/lineage.
+
+R2 GITHUB EVIDENCE READ
+- Source/syntax/security job: GREEN.
+- Full hotel finance/booking/UI/Telegram UAT: GREEN.
+- PRD deployment profile job: RED at horizontal runtime startup.
+- First real error: Docker failed creating api while api+api2 concurrently populated the same fresh `state` named volume:
+  failed to mkdir .../state/_data/outbox: file exists
+- Failure happened before the disposable MySQL runtime and later realtime/HQ external-adapter steps.
+
+ROOT CAUSE
+- Dockerfile pre-created /var/lib/tamasya/outbox and /var/lib/tamasya/backups.
+- compose mounted the same fresh named volume at /var/lib/tamasya for both api replicas.
+- Docker automatic volume copy-up ran during parallel container creation.
+- Two replicas raced to create identical copied directories.
+- The uploads named volume had the same multi-consumer lifecycle class and was fixed in the same macro wave rather than waiting for a second failure.
+
+NOT ACCEPTED AS A FIX
+- retrying docker compose;
+- adding sleep;
+- starting api then api2 sequentially;
+- deleting the conflicting path;
+- weakening the SaaS two-replica assertion.
+
+R3 ROOT FIX
+- volume.nocopy=true for state and uploads;
+- one-shot storage-init owns first-time directory setup;
+- api/worker/web depend on successful initializer completion;
+- init fails closed on symlink/non-directory collision;
+- API/worker stay non-root/read-only-rootfs;
+- Nginx remains read-only for uploads;
+- SaaS Nginx keeps fastcgi_next_upstream off and explicitly passively quarantines failed replicas for later requests.
+
+MACRO TEST EXPANSION
+- fresh parallel api+api2+web startup;
+- storage-init exit 0;
+- non-root writable-boundary proof;
+- cross-replica state proof;
+- public upload sharing proof;
+- 96 concurrent DB-backed API reads;
+- canonical worker process + shared state proof;
+- restart persistence proof;
+- one-replica loss degradation proof without request replay;
+- private path denial;
+- retained real realtime process simulation;
+- retained HQ TLS/MySQL delivery + S3 SigV4 simulation.
+
+LOCAL LIMIT
+- This environment has no Docker/Podman daemon, therefore fresh-volume parallel startup cannot be honestly executed locally.
+- Static/source/process suites are run locally; container runtime proof remains GitHub-gated.
+
+FINAL RULE
+- Push only this macro checkpoint, not intermediate small patches.
+- If exact R3 is fully GREEN, freeze that commit as PRD SOFTWARE FINAL.

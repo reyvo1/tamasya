@@ -1,0 +1,27 @@
+.git
+.env
+.env.*
+node_modules/
+test-results/
+playwright-report/
+backups/
+private/
+db_credentials.php
+*.zip
+*.log
+
+# Keep source/UAT tests versioned; ignore only generated UAT state/evidence.
+tests/uat_rc1/logs/
+tests/uat_rc1/session.json
+tests/uat_rc1/state.json
+tests/uat_rc1/*-state.json
+tests/uat_rc1/__pycache__/
+**/__pycache__/
+*.pyc
+
+# Runtime upload data is not versioned, but hardening files remain source.
+uploads/*
+!uploads/.htaccess
+!uploads/public-site/
+uploads/public-site/*
+!uploads/public-site/.htaccess

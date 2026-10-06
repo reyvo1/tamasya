@@ -1,0 +1,48 @@
+{
+  "version": "20260821-fix28r6-audit15-enterprise-discovery-root",
+  "baseline_sha256": "50cc147d5052dafc566800fe16dade1ea57f4d160c247c40fecdbadd6526fe49",
+  "source_bytes": 2191114,
+  "core_bytes": 429201,
+  "vendor_react_bytes": 195171,
+  "app_shared_bytes": 178126,
+  "feature_shared_bytes": 126534,
+  "app_shell_bytes": 122744,
+  "core_reduction_pct": 80.42,
+  "partition_statement_bytes": {
+    "core": 396285,
+    "vendor": 194911,
+    "app_shared": 174892,
+    "feature_shared": 122370
+  },
+  "counts": {
+    "core": 1466,
+    "vendor": 26,
+    "app_shared": 455,
+    "feature_shared": 386
+  },
+  "chunks": {
+    "dashboard.js": 20710,
+    "booking-receipt.js": 12157,
+    "rooms.js": 164548,
+    "finance.js": 163672,
+    "finance-detail.js": 101371,
+    "report-detail.js": 38336,
+    "report.js": 124112,
+    "staff-detail.js": 32189,
+    "staff.js": 33813,
+    "leaves.js": 44600,
+    "telegram.js": 10518,
+    "operations-widget.js": 11425,
+    "staff-permissions.js": 16999,
+    "config.js": 36995,
+    "db-config.js": 18995,
+    "inventory.js": 66428,
+    "attendance.js": 45366,
+    "operations.js": 149067,
+    "savings.js": 20379,
+    "local-connect.js": 18776,
+    "website.js": 32788,
+    "support.js": 10899,
+    "app-shell.js": 122744
+  }
+}

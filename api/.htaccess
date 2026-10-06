@@ -1,0 +1,5 @@
+# Internal PHP modules and manifests are never downloadable directly.
+Options -Indexes
+<FilesMatch "(?i)\.(?:php|json|md|sql|patch|sha256)$">
+    Require all denied
+</FilesMatch>

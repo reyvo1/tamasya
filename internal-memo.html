@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <script src="./assets/owner-readonly-policy.js?v=20261006-owner-enterprise-r7"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TAMASYA Memo Internal</title>
+  <meta name="theme-color" content="#17324d" />
+  <link rel="stylesheet" href="./assets/internal-memo.css?v=20261006-owner-enterprise-r7" />
+  <link rel="stylesheet" href="./assets/owner-readonly.css?v=20261006-owner-enterprise-r7" />
+</head>
+<body>
+<header class="topbar"><div><p class="eyebrow">TAMASYA • INTERNAL</p><h1>Memo Internal</h1><p>Catatan Admin & Keuangan dengan histori audit. Owner hanya membaca.</p></div><a class="btn secondary" href="./">← Kembali ke PMS</a></header>
+<main>
+  <div id="owner-banner" class="notice hidden">Mode Owner: seluruh memo dapat dibaca, tetapi perubahan data dinonaktifkan.</div>
+  <section class="panel" id="memo-editor-panel">
+    <h2>Catat Memo</h2>
+    <form id="memo-form" class="form-grid">
+      <input id="memo-id" type="hidden" />
+      <label>Judul<input id="memo-title" maxlength="190" required /></label>
+      <label>Kategori<select id="memo-category"><option value="general">Umum</option><option value="finance">Keuangan</option><option value="admin">Administrasi</option><option value="follow_up">Tindak Lanjut</option><option value="important">Penting</option></select></label>
+      <label>Prioritas<select id="memo-priority"><option value="low">Rendah</option><option value="normal" selected>Normal</option><option value="high">Tinggi</option><option value="urgent">Urgent</option></select></label>
+      <label class="span2">Isi<textarea id="memo-body" rows="6" maxlength="10000" required placeholder="Catat hal yang perlu diingat, ditindaklanjuti, atau diketahui Admin/Keuangan."></textarea></label>
+      <div class="actions span2"><button class="btn" type="submit">Simpan Memo</button><button class="btn secondary" type="button" id="memo-reset">Bersihkan</button></div>
+    </form>
+  </section>
+  <section class="panel"><div class="panel-head"><div><h2>Daftar Memo</h2><p>Tidak ada hard-delete. Memo lama diarsipkan agar histori tetap dapat diaudit.</p></div><button id="memo-refresh" class="btn secondary">Muat Ulang</button></div>
+    <div class="filters"><input id="memo-q" placeholder="Cari judul / isi / kategori" /><select id="memo-status"><option value="active">Aktif</option><option value="archived">Arsip</option><option value="all">Semua</option></select></div>
+    <div id="memo-list" class="memo-list"></div>
+  </section>
+</main>
+<div id="toast" class="toast"></div>
+<script defer src="./assets/internal-memo.js"></script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+TAMASYA PRD CLOSURE R4 — AUTHENTICATED DATABASE READINESS MACRO AUDIT
+Date: 2026-10-02
+
+PARENT
+- Exact R3 GitHub commit: 2588681cae91be2823db7067db294545ada2ca30
+- Existing branch: rc1/post-green-owner-harness-v2
+- No new repo, no new product lineage.
+
+R3 GITHUB EVIDENCE READ
+- RC1 source/syntax/security gate: GREEN.
+- Full hotel finance/booking/UI/Telegram UAT: GREEN.
+- Full Complete evidence: 731/731 PASS; 0 FAIL.
+- R3 storage-init root fix itself worked: fresh state/uploads volumes were created, storage-init exited 0, api+api2+web started together without the prior Docker copy-up race.
+- PRD deployment job then failed at the disposable MySQL bootstrap before API runtime assertions.
+
+FIRST NEW REAL FAILURE
+ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: YES)
+
+ROOT CAUSE
+- R3 used `mysqladmin ping` as the MySQL readiness oracle.
+- `mysqladmin ping` proves that a mysqld process responds; it is not proof that authentication and the official image entrypoint bootstrap have completed.
+- The loop could therefore break while MySQL was still in initialization/temporary-server lifecycle.
+- The next authenticated `mysql` command then raced the unfinished bootstrap and failed with ERROR 1045.
+- This was a fail-open readiness contract, not a wrong production DB password and not a hotel business regression.
+
+NOT ACCEPTED AS A FIX
+- sleep/retry around the failing schema import;
+- increasing arbitrary wait time;
+- retrying the root query after ERROR 1045;
+- disabling authentication;
+- weakening the runtime smoke;
+- using process/TCP liveness as database initialization proof.
+
+R4 ROOT FIX
+- New single readiness authority: tests/uat_prd/mysql-authenticated-ready.sh.
+- Readiness requires a real TCP `SELECT 1` authenticated as the runtime application user against the expected database.
+- The helper is bounded, detects stopped/dead containers, and emits container logs on timeout.
+- Both SaaS runtime DB and HQ adapter DB use the same readiness contract.
+- Wrong application password is explicitly tested and must fail.
+- Canonical database_setup.sql and HQ schemas are imported using the application/schema-owner account, not DBA/root credentials.
+- SaaS bootstrap additionally proves exactly 113 canonical tables and 5 canonical triggers before API readiness is accepted.
+- PRD auxiliary MySQL image is digest-pinned to the exact MySQL 8.4 image observed in R3, while a controlled override remains available for deliberate upgrades.
+- deploy/README.md now documents the readiness rule so the fix is architectural rather than CI-only.
+
+MACRO COVERAGE RETAINED
+- serialized nocopy runtime storage init;
+- fresh parallel api+api2+web startup;
+- non-root runtime boundaries;
+- cross-replica state and public upload sharing;
+- 96 concurrent DB-backed routed API reads;
+- worker shared-state proof;
+- restart persistence;
+- one-replica-loss degradation without upstream request replay;
+- realtime process execution;
+- HQ TLS delivery/ACK semantics;
+- S3 SigV4 immutable archive behavior;
+- full 731-assertion hotel UAT remains additive and unchanged.
+
+LOCAL LIMIT
+- No Docker/Podman daemon is available in this execution environment.
+- All deterministic source/lint/static/process-independent regressions are run locally.
+- Exact container lifecycle proof remains a GitHub gate and must not be called PASS locally.
+
+FINAL RULE
+- Push this macro checkpoint once over exact R3 commit 2588681cae91be2823db7067db294545ada2ca30.
+- If exact R4 is fully GREEN, freeze that exact commit as TAMASYA PRD SOFTWARE FINAL.

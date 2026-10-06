@@ -1,0 +1,133 @@
+# ====================================================================
+# TAMASYA HOTEL SYSTEM - PRODUCTION WEB SERVER CONFIGURATION (.HTACCESS)
+# Place this file in the root of your public_html or hosting directory
+# ====================================================================
+
+# Bound request bodies before PHP. Keep synchronized with APP_MAX_REQUEST_BYTES.
+LimitRequestBody 12582912
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # TRACE/TRACK can expose authentication headers and are never required.
+    RewriteCond %{REQUEST_METHOD} ^(?:TRACE|TRACK)$ [NC]
+    RewriteRule .* - [F,L]
+
+    # Preserve Bearer authentication on Apache/LiteSpeed/FastCGI shared hosting.
+    # Without this, login can succeed but every protected request arrives at PHP
+    # without HTTP_AUTHORIZATION and the frontend falls back to stale offline data.
+    RewriteCond %{HTTP:Authorization} ^(.+)$
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%1]
+    SetEnvIf Authorization "(.+)" HTTP_AUTHORIZATION=$1
+
+    # 1. Force HTTPS on public hosts (proxy/Cloudflare aware).
+    # Private/LAN hosts are exempt so the local offline node can remain usable
+    # during an internet outage. Use an isolated trusted staff LAN; HTTPS local
+    # gateway/VPN is still strongly preferred. Public hostnames always redirect.
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https [NC]
+    RewriteCond %{HTTP_HOST} !^(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]+)?$ [NC]
+    RewriteCond %{HTTP_HOST} !^(?:10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3}|172\.(?:1[6-9]|2[0-9]|3[01])\.[0-9]{1,3}\.[0-9]{1,3})(?::[0-9]+)?$ [NC]
+    RewriteCond %{HTTP_HOST} !^[A-Za-z0-9-]+\.local(?::[0-9]+)?$ [NC]
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Website CMS media is intentionally public. Executable extensions remain blocked by uploads/.htaccess.
+    RewriteRule ^uploads/public-site(?:/|$) - [L]
+
+    # Block direct access to all other uploads (KTP/identity/payment evidence/private files).
+    # Those files are served only through authenticated API endpoints.
+    RewriteRule ^uploads(?:/|$) - [F,L]
+
+    # 2. API Route Redirection: Redirects api/something to api.php?action=something relative to the current directory
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^api/(.*)$ api.php?action=$1 [QSA,L]
+
+    # Missing file-like requests must stay missing. Never rewrite mistyped PHP/static assets to index.html.
+    # Prevents HTML responses being served as JavaScript/PHP utility paths.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} \.(?:php|js|mjs|css|json|map|webmanifest|xml|txt|csv|xlsx|pdf|png|jpe?g|gif|svg|ico|woff2?|ttf)$ [NC]
+    RewriteRule ^ - [R=404,L]
+
+    # 3. React Single Page App (SPA) Router Fallback:
+    # Ensures reloading pages works without 404 errors by routing non-file/non-api requests to index.html
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} !/api/
+    RewriteRule . index.html [L]
+</IfModule>
+
+# 3. Prevent browser and server caching for index.html (SPA entry)
+# This forces the browser to always load the latest React bundle after you upload changes
+<IfModule mod_headers.c>
+    <FilesMatch "index\.html$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires 0
+    </FilesMatch>
+</IfModule>
+
+# Enable gzip compression for faster load times on shared hosting
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+
+# 4. Security Headers (HTTPS SSL, Clickjacking, MIME, XSS)
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-XSS-Protection "0"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    Header always set Permissions-Policy "camera=(self), microphone=(), geolocation=(self), payment=(), usb=()"
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+    Header always set Cross-Origin-Resource-Policy "same-origin"
+    Header always set X-Robots-Tag "noindex, nofollow, noarchive"
+    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' https: wss:; frame-src https://google.com https://www.google.com https://maps.google.com; worker-src 'self' blob:; manifest-src 'self'"
+</IfModule>
+
+# maintenance_cron.php supports protected CLI/HTTP execution using CRON_SECRET.
+# Do not block it here; the PHP script performs its own authentication gate.
+<Files "staging_preflight.php">
+    Require all denied
+</Files>
+<Files "database_maintenance_web.php">
+    Require all denied
+</Files>
+
+# Block source/configuration artifacts and legacy credential files.
+<FilesMatch "^(?:(?:db_credentials(?:\.example)?|tamasya_db_credentials)\.php|\.env(?:\..*)?|database_setup\.sql|package(?:-lock)?\.json|bun\.lock|tsconfig\.json|vite\.config\.ts|server\.ts|dev-with-php\.mjs)$">
+    Require all denied
+</FilesMatch>
+
+# Prevent directory listings on shared hosting.
+Options -Indexes
+
+# Database bootstrap internals are server-side only.
+<FilesMatch "^(?:database_bootstrap|baseline_support|backup_support|node_cluster_support|runtime_crypto|runtime_web_helpers|admin_web_tool_gate|restore_evidence_support)\.php$">
+    Require all denied
+</FilesMatch>
+<Files ".database_setup_key.php">
+    Require all denied
+</Files>
+
+# Node sync support internals are include-only. node_sync_agent.php itself has
+# a protected browser one-shot mode guarded by ADMIN_WEB_TOOLS_SECRET.
+<Files "node_sync_support.php">
+    Require all denied
+</Files>
+
+# Release documentation, migrations, patches, and checksum manifests are server-side artifacts.
+# They may be served through authenticated API workflows, but never downloaded directly.
+<FilesMatch "(?i)\.(?:sql|md|patch|sha256)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^(?:DIST_SHA256_MANIFEST\.txt|[A-Z0-9_.-]+_RELEASE_MANIFEST\.json)$">
+    Require all denied
+</FilesMatch>
+
+# Block hidden files and backup/editor artifacts that can expose source or secrets.
+<FilesMatch "(^\.|~$|\.(?:bak|old|orig|save|swp|swo|tmp|log)$)">
+    Require all denied
+</FilesMatch>

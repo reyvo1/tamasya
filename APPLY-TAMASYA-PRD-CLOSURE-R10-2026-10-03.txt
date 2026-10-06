@@ -1,0 +1,24 @@
+TAMASYA PRD CLOSURE R10 APPLY
+
+Required exact parent:
+f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+
+From ~/Desktop/a:
+
+git rev-parse HEAD
+
+It must equal the exact parent above.
+
+Then overlay:
+unzip -o ~/Downloads/TAMASYA-PRD-CLOSURE-R10-PATCH-OVER-f88ec8081b78-2026-10-03.zip -d .
+
+Verify:
+sha256sum -c FILE_CHECKSUMS.sha256
+
+Only if every manifest entry is OK:
+git status
+git add -A
+git commit -m "TAMASYA PRD closure R10 outbound private TLS trust root fix"
+git push origin HEAD
+
+Do not create a new repo or branch. Do not skip/relax UAT.

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <script src="./assets/owner-readonly-policy.js?v=20261006-owner-enterprise-r7"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TAMASYA Multi-Property Readiness</title>
+  <meta name="theme-color" content="#17324d" />
+  <script src="./runtime_config.php?v=20260807-enterprise112"></script>
+  <link rel="stylesheet" href="./assets/multi-property-foundation.css?v=20261006-owner-enterprise-r7" />
+    <script defer src="./assets/date-display-id.js?v=20260829-fix39-refsafe"></script>
+  <link rel="stylesheet" href="./assets/owner-readonly.css?v=20261006-owner-enterprise-r7" />
+</head>
+<body>
+<header class="topbar">
+  <div><div class="eyebrow">TAMASYA • FUTURE MULTI-PROPERTY FOUNDATION</div><h1>Multi-Property / HQ Readiness</h1><p>Company → Property → Cluster → Node • database tetap terpisah per hotel</p></div>
+  <div class="actions"><a class="btn secondary" href="./growth-suite.html">← Growth Suite</a><a class="btn secondary" href="./">PMS</a></div>
+</header>
+<div class="banner">Release ini <b>read-only terhadap operasional cabang</b>. Hotel dapat mengirim snapshot agregat bertanda tangan ke HQ jika bridge diaktifkan; HQ tetap tidak dapat menulis booking/uang cabang.</div>
+<main>
+  <section class="panel"><div class="panel-head"><div><h2>Status & Identitas Properti</h2><p>Gunakan untuk menilai kesiapan hotel menjadi cabang dalam satu perusahaan.</p></div><button id="refresh" class="btn">Refresh</button></div><div id="status-cards" class="cards"></div><div id="identity"></div><div id="checks"></div></section>
+  <section class="panel"><div class="panel-head"><div><h2>Preview Snapshot HQ</h2><p>Agregat KPI + trial balance saja; tanpa nama tamu, KTP, transaksi mentah, atau booking mentah.</p></div></div><div class="form-row"><label>Dari<input id="from" type="date" /></label><label>Sampai<input id="to" type="date" /></label><button id="preview" class="btn">Buat Preview Lokal</button><button id="snapshot-v2" data-owner-read-action class="btn secondary">Unduh Snapshot Terverifikasi</button><button id="queue-snapshot" class="btn secondary">Antrekan ke HQ v2</button><button id="push-hq" class="btn secondary">Kirim Bridge Legacy v1</button></div><div id="preview-result"></div></section>
+  <section class="grid two"><div class="panel"><h2>Property Manifest</h2><p>Manifest hanya Admin dan dipakai kelak untuk mendaftarkan hotel ke HQ Hub.</p><button id="manifest" class="btn secondary">Tampilkan Manifest</button><pre id="manifest-result"></pre></div><div class="panel"><h2>Kontrak & Kapabilitas</h2><p>Cross-property reservation dan HQ writeback sengaja OFF sampai signed/idempotent workflow benar-benar dibuat dan diuji.</p><button id="contracts" class="btn secondary">Lihat Kontrak</button><pre id="contract-result"></pre></div></section>
+  <section class="panel"><h2>Antrean Snapshot HQ v2</h2><p>Pending berarti belum diterima pusat. ACK menandakan snapshot sudah disimpan. Antrean memerlukan direktori private dari administrator.</p><button id="outbox" class="btn secondary">Periksa Antrean</button><div id="outbox-result"></div></section><section class="panel danger"><h2>Aturan Arsitektur yang Dikunci</h2><ul><li>Satu database operasional per hotel/cabang.</li><li>Setiap hotel boleh punya Primary + Standby sendiri.</li><li>HQ menggunakan database terpisah dan hanya menerima snapshot/event minimum.</li><li>HQ tidak boleh INSERT/UPDATE langsung ke database cabang.</li><li>Booking lintas cabang kelak harus dibuat oleh Primary hotel tujuan dengan operation ID yang sama.</li><li>PBJT, shift kas, POS, kunci, housekeeping dan jurnal operasional tetap milik cabang masing-masing.</li></ul></section>
+</main>
+<div id="toast"></div><script src="./assets/multi-property-foundation.js?v=enterprise-rc1-20260922"></script>
+</body></html>

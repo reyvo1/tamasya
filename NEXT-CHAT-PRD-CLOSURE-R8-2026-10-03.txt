@@ -1,0 +1,20 @@
+TAMASYA PRD Closure R8 continuation
+
+Repository: reyvo1/testamasya
+Branch: rc1/post-green-owner-harness-v2
+Exact R8 parent / R7 commit: 85d72c4ad70c8450899f3f92b517dc389c89e4b5
+
+R7 GitHub evidence:
+- Full hotel UAT: 731/731 PASS, 0 FAIL.
+- Playwright desktop/mobile: 34/34 PASS.
+- Horizontal SaaS PMS runtime: PASS through 113 tables, 5 triggers, least-privilege DB, 2 API replicas, 96 concurrent reads, worker, restart persistence and replica-loss degradation.
+- Failure only in HQ schema authority verification: actualTables=7, expectedTables=0 after successful HQ schema import.
+
+Root cause and R8:
+- R7 authority parser only recognized backtick CREATE TABLE names; HQ uses unquoted table identifiers.
+- Shared helper also incorrectly assumed every schema owns PMS schema_release_state attestation.
+- R8 supports quoted/unquoted/IF NOT EXISTS/schema-qualified identifiers, fails closed on zero parsed tables, and splits explicit `property` vs `hq` authority profiles.
+- Property keeps exact canonical source attestation. HQ gets strict object verification + ordered source-set digest without invented PMS metadata.
+- Runtime least privilege is not loosened; HQ DELETE denial is now behaviorally tested.
+
+Do not reduce UAT, skip jobs, relax assertions, grant TRIGGER/SUPER/DDL, or change expected results merely to obtain green.

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <script src="./assets/owner-readonly-policy.js?v=20261006-owner-enterprise-r7"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>POS &amp; Minibar — TAMASYA</title>
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="./assets/pos-minibar.css?v=20261006-owner-enterprise-r7" />
+  <link rel="stylesheet" href="./assets/responsive-polish.css?v=20261006-owner-enterprise-r7" />
+  <script src="./runtime_config.php?v=20260804-production-ready-1"></script>
+  <script defer src="./assets/property-branding.js?v=20261006-owner-enterprise-r7"></script>
+  <script defer src="./assets/api-operation-guard.js?v=20260914-r4-3-operation-retry"></script>
+  <script defer src="./assets/pos-business-date-policy.js?v=20261006-owner-enterprise-r7"></script>
+  <script defer src="./assets/pos-minibar.js?v=20261003-prd-r7-rollover"></script>
+    <script defer src="./assets/date-display-id.js?v=20260829-fix39-refsafe"></script>
+  <link rel="stylesheet" href="./assets/owner-readonly.css?v=20261006-owner-enterprise-r7" />
+</head>
+<body data-property-title="1">
+  <div id="pos-app" class="pos-shell" aria-live="polite">
+    <header class="pos-header">
+      <div class="brand-wrap">
+        <a id="pos-back-link" class="back-link" href="./" title="Kembali ke aplikasi utama" aria-label="Kembali ke aplikasi utama"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7"/></svg><span class="back-link-label">Kembali</span></a>
+        <div class="brand-mark" data-property-mark>H</div>
+        <div>
+          <p class="eyebrow" data-property-name>Hotel</p>
+          <h1>POS & Minibar</h1>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span id="current-user" class="user-chip">Memuat sesi…</span>
+        <button id="refresh-btn" class="btn btn-secondary" type="button">Segarkan</button>
+      </div>
+    </header>
+
+    <nav class="pos-nav" aria-label="Navigasi POS">
+      <button class="nav-tab active" data-view="cashier" type="button">Kasir</button>
+      <button class="nav-tab" data-view="products" type="button">Produk</button>
+      <button class="nav-tab" data-view="stock" type="button">Stok</button>
+      <button class="nav-tab" data-view="sales" type="button">Penjualan</button>
+      <button class="nav-tab" data-view="deliveries" type="button">Pengantaran <span id="delivery-count" class="nav-count">0</span></button>
+    </nav>
+
+    <main>
+      <section id="summary-cards" class="summary-grid"></section>
+
+      <section id="view-cashier" class="view-panel active">
+        <div class="cashier-layout">
+          <article class="panel catalog-panel">
+            <div class="panel-head">
+              <div><p class="eyebrow">KATALOG</p><h2>Pilih produk</h2></div>
+              <input id="product-search" class="input search-input" type="search" placeholder="Cari nama, SKU, atau barcode" autocomplete="off" />
+            </div>
+            <div id="category-chips" class="chip-row"></div>
+            <div id="product-grid" class="product-grid"></div>
+          </article>
+
+          <aside class="panel cart-panel">
+            <div class="panel-head"><div><p class="eyebrow">KERANJANG</p><h2>Transaksi baru</h2></div><button id="clear-cart" class="link-btn" type="button">Kosongkan</button></div>
+            <div id="cart-list" class="cart-list"></div>
+            <div class="cart-totals">
+              <div><span>Subtotal</span><strong id="cart-subtotal">Rp0</strong></div>
+              <div id="cart-discount-row" class="hidden discount-total"><span>Diskon</span><strong id="cart-discount">-Rp0</strong></div>
+              <div><span>DPP/Pendapatan setelah diskon</span><strong id="cart-base">Rp0</strong></div>
+              <div><span>Pajak</span><strong id="cart-tax">Rp0</strong></div>
+              <div class="grand-total"><span>Total bayar / folio</span><strong id="cart-total">Rp0</strong></div>
+            </div>
+            <div class="form-stack">
+              <label>Metode pembayaran
+                <select id="payment-method" class="input">
+                  <option value="cash">Tunai</option>
+                  <option value="qris">QRIS</option>
+                  <option value="transfer">Transfer</option>
+                  <option value="card">Kartu</option>
+                  <option value="room_charge">Charge ke Kamar</option>
+                </select>
+              </label>
+              <label id="bank-wrap" class="hidden">Akun bank / QRIS<select id="bank-account" class="input"></select></label>
+              <label id="booking-wrap" class="hidden">Tamu / kamar aktif<select id="booking-select" class="input"></select><small id="booking-help" class="field-help"></small></label>
+              <div id="discount-wrap" class="discount-box hidden">
+                <label>Jenis diskon<select id="discount-type" class="input"><option value="none">Tanpa diskon</option><option value="percentage">Persentase (%)</option><option value="fixed">Nominal (Rp)</option></select></label>
+                <label id="discount-value-wrap" class="hidden">Nilai diskon<input id="discount-value" class="input" type="number" min="0" step="0.01" value="0" /></label>
+                <label id="discount-reason-wrap" class="hidden">Alasan diskon<input id="discount-reason" class="input" maxlength="255" placeholder="Wajib, minimal 5 karakter" /></label>
+                <small>Diskon hanya dapat diberikan oleh Manager/Admin dan dicatat pada audit serta nota.</small>
+              </div>
+              <label>Catatan<input id="sale-notes" class="input" maxlength="250" placeholder="Opsional" /></label>
+              <button id="checkout-btn" class="btn btn-primary btn-large" type="button">Simpan Penjualan</button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="view-products" class="view-panel">
+        <article class="panel">
+          <div class="panel-head">
+            <div><p class="eyebrow">MASTER DATA</p><h2>Produk POS & Minibar</h2></div>
+            <div class="panel-actions">
+              <button id="manage-categories-btn" class="btn btn-secondary" type="button">Kelola Kategori</button>
+              <button id="add-product-btn" class="btn btn-primary" type="button">+ Produk baru</button>
+            </div>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>SKU</th><th>Produk</th><th>Kategori</th><th>Harga jual</th><th>Stok</th><th>Pajak</th><th>Status</th><th></th></tr></thead><tbody id="products-table"></tbody></table></div>
+        </article>
+      </section>
+
+      <section id="view-stock" class="view-panel">
+        <div class="stock-layout">
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">PERSEDIAAN</p><h2>Stok rendah</h2></div></div>
+            <div id="low-stock-list" class="stack-list"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">PENYESUAIAN</p><h2>Koreksi stok</h2></div></div>
+            <form id="stock-form" class="form-stack">
+              <label>Produk<select id="stock-product" class="input" required></select></label>
+              <label>Tambah / kurangi jumlah<input id="stock-delta" class="input" type="number" step="0.001" required placeholder="Contoh: 12 atau -2" /></label>
+              <label>Alasan<textarea id="stock-reason" class="input" rows="3" required placeholder="Pembelian stok, stok opname, rusak, kedaluwarsa…"></textarea></label>
+              <button class="btn btn-primary" type="submit">Simpan Penyesuaian</button>
+            </form>
+          </article>
+        </div>
+      </section>
+
+      <section id="view-sales" class="view-panel">
+        <article class="panel">
+          <div class="panel-head sales-head">
+            <div><p class="eyebrow">LAPORAN</p><h2>Riwayat penjualan</h2></div>
+            <div class="date-filter"><input id="sales-from" class="input" type="date" /><input id="sales-to" class="input" type="date" /><button id="load-sales" class="btn btn-secondary" type="button">Tampilkan</button></div>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>Nota</th><th>Waktu</th><th>Metode</th><th>Kamar</th><th>Total</th><th>Pajak</th><th>Kasir</th><th>Status</th><th></th></tr></thead><tbody id="sales-table"></tbody></table></div>
+        </article>
+      </section>
+
+      <section id="view-deliveries" class="view-panel">
+        <article class="panel">
+          <div class="panel-head sales-head">
+            <div><p class="eyebrow">ROOM SERVICE</p><h2>Antrean pengantaran kamar</h2><p class="panel-note">Cetak slip pengambilan, siapkan barang, antar ke kamar, lalu konfirmasi nama penerima.</p></div>
+            <div class="date-filter"><select id="delivery-filter" class="input"><option value="open">Masih diproses</option><option value="all">Semua</option><option value="delivered">Sudah diterima</option><option value="cancelled">Dibatalkan</option></select><button id="load-deliveries" class="btn btn-secondary" type="button">Tampilkan</button></div>
+          </div>
+          <div id="delivery-list" class="delivery-grid"></div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="product-dialog" class="modal">
+    <form id="product-form" method="dialog">
+      <div class="modal-head"><div><p class="eyebrow">MASTER PRODUK</p><h2 id="product-dialog-title">Produk baru</h2></div><button id="close-product-dialog" class="icon-btn" type="button" aria-label="Tutup">×</button></div>
+      <input id="product-id" type="hidden" /><input id="product-version" type="hidden" />
+      <div class="form-grid">
+        <label>SKU<input id="product-sku" class="input" maxlength="80" required /></label>
+        <label>Nama produk<input id="product-name" class="input" maxlength="190" required /></label>
+        <label>Kategori<select id="product-category" class="input"></select></label>
+        <label>Satuan<input id="product-unit" class="input" value="pcs" maxlength="30" required /></label>
+        <label>Harga beli / HPP<input id="product-cost" class="input" type="number" min="0" step="1" required /></label>
+        <label>Harga jual<input id="product-price" class="input" type="number" min="0" step="1" required /></label>
+        <label id="initial-stock-wrap">Stok awal<input id="product-initial-stock" class="input" type="number" min="0" step="0.001" value="0" /></label>
+        <label>Stok minimum<input id="product-min-stock" class="input" type="number" min="0" step="0.001" value="0" /></label>
+        <label>Profil pajak POS<select id="product-tax-kind" class="input"><option value="extra">Extra / lainnya</option><option value="food_beverage">Makanan & minuman</option><option value="retail">Barang retail</option><option value="service">Layanan</option></select><small class="muted">Tarif mengikuti Aturan Pajak dengan sumber POS. Rule jenis POS / Minibar (umum) dapat menjadi fallback; rule profil produk yang lebih spesifik akan diprioritaskan pada prioritas rule yang sama.</small></label>
+        <label>Barcode<input id="product-barcode" class="input" maxlength="120" /></label>
+        <label class="full">Lokasi stok<input id="product-location" class="input" value="Front Office / Minibar" maxlength="120" /></label>
+        <label class="full">Catatan<textarea id="product-notes" class="input" rows="2"></textarea></label>
+        <label class="switch-row full"><input id="product-active" type="checkbox" checked /><span>Produk aktif dan dapat dijual</span></label>
+      </div>
+      <div class="modal-actions"><button id="cancel-product-dialog" class="btn btn-secondary" type="button">Batal</button><button id="save-product" class="btn btn-primary" type="submit">Simpan Produk</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="category-dialog" class="modal category-modal">
+    <form id="category-form" method="dialog">
+      <div class="modal-head"><div><p class="eyebrow">MASTER KATEGORI POS</p><h2>Kelola kategori</h2><p class="panel-note">Tambah, ubah nama/urutan, atau nonaktifkan kategori yang tidak dipakai.</p></div><button id="close-category-dialog" class="icon-btn" type="button" aria-label="Tutup">×</button></div>
+      <input id="category-id" type="hidden" /><input id="category-version" type="hidden" />
+      <div class="category-manager-layout">
+        <section class="category-editor">
+          <h3 id="category-editor-title">Kategori baru</h3>
+          <div class="form-stack">
+            <label>Nama kategori<input id="category-name" class="input" maxlength="120" required placeholder="Contoh: Makanan Berat" /></label>
+            <label>Urutan tampil<input id="category-sort-order" class="input" type="number" min="0" max="9999" step="1" value="60" required /></label>
+            <label class="switch-row"><input id="category-active" type="checkbox" checked /><span>Kategori aktif dan tersedia saat membuat produk</span></label>
+          </div>
+          <div class="category-form-actions">
+            <button id="reset-category-form" class="btn btn-secondary" type="button">Kategori Baru</button>
+            <button id="save-category" class="btn btn-primary" type="submit">Simpan Kategori</button>
+          </div>
+        </section>
+        <section class="category-list-panel">
+          <div class="table-wrap"><table class="category-table"><thead><tr><th>Kategori</th><th>Urutan</th><th>Produk</th><th>Status</th><th></th></tr></thead><tbody id="categories-table"></tbody></table></div>
+          <p class="field-help">Kategori yang masih dipakai produk aktif tidak dapat dinonaktifkan sebelum produknya dipindahkan atau dinonaktifkan.</p>
+        </section>
+      </div>
+      <div class="modal-actions"><button id="cancel-category-dialog" class="btn btn-secondary" type="button">Tutup</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="receipt-dialog" class="modal receipt-modal">
+    <div class="receipt-toolbar no-print">
+      <label>Dokumen<select id="print-type" class="input"><option value="customer_receipt">Nota pelanggan</option><option value="dual_copy">Nota tamu + arsip</option><option value="picking_slip">Slip pengambilan barang</option><option value="room_delivery">Slip pengantaran kamar</option></select></label>
+      <label>Kertas<select id="paper-width" class="input"><option value="80">Thermal 80 mm</option><option value="58">Thermal 58 mm</option></select></label>
+      <label>Salinan<select id="print-copies" class="input"><option value="1">1 salinan</option><option value="2">2 salinan</option></select></label>
+    </div>
+    <div id="receipt-content"></div>
+    <div class="modal-actions no-print"><button id="close-receipt" class="btn btn-secondary">Tutup</button><button id="print-receipt" class="btn btn-primary">Cetak Termal</button></div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+  <div id="loading" class="loading-overlay hidden"><div class="spinner"></div><p>Memproses…</p></div>
+</body>
+</html>

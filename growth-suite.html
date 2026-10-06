@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <script src="./assets/owner-readonly-policy.js?v=20261006-owner-enterprise-r7"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TAMASYA Growth Suite</title>
+  <meta name="theme-color" content="#17324d" />
+  <script src="./runtime_config.php?v=20260807-growth109"></script>
+  <link rel="stylesheet" href="./assets/growth-suite.css?v=20261006-owner-enterprise-r7" />
+    <script defer src="./assets/date-display-id.js?v=20260829-fix39-refsafe"></script>
+  <link rel="stylesheet" href="./assets/owner-readonly.css?v=20261006-owner-enterprise-r7" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">TAMASYA • MODUL EKSTENSI AMAN</p>
+      <h1>Growth Suite</h1>
+      <p class="subtitle">Revenue Manager • Group/Corporate • Advanced Folio • Procurement • KPI • Integration Foundation</p>
+    </div>
+    <div class="header-actions">
+      <span id="server-pill" class="pill">Memeriksa server…</span>
+      <a class="btn secondary" href="./enterprise-suite.html">Enterprise Suite ↗</a>
+      <a class="btn secondary" href="./multi-property-foundation.html">Multi-Property HQ ↗</a>
+      <a class="btn secondary" href="./">← Kembali ke PMS</a>
+    </div>
+  </header>
+
+  <div id="safety-banner" class="banner info">Growth Suite bersifat additive. G1 KPI membaca tabel Core secara read-only; modul Growth lain tetap feature-gated dan tidak mengubah source-of-truth Core.</div>
+  <nav id="tabs" class="tabs" aria-label="Growth Suite">
+    <button data-tab="overview" class="active">Ringkasan</button>
+    <button data-tab="kpi" class="hidden">KPI Hotel</button>
+    <button data-tab="rate" class="hidden">Rate & Revenue</button>
+    <button data-tab="group" class="hidden">Group & Corporate</button>
+    <button data-tab="folio" class="hidden">Guest Folio</button>
+    <button data-tab="procurement" class="hidden">Procurement</button>
+    <button data-tab="integrations" class="hidden">Integrasi</button>
+  </nav>
+
+  <main>
+    <section id="tab-overview" class="tab-panel active">
+      <div id="feature-status" class="cards"></div>
+      <div class="panel">
+        <div class="panel-head"><div><h2>Health & Safety</h2><p>Ringkasan node, backup, sync dan status schema ekstensi.</p></div><button id="refresh-bootstrap" class="btn">Refresh</button></div>
+        <div id="health-grid" class="cards"></div>
+        <div id="activation-help" class="notice warning hidden"></div>
+      </div>
+    </section>
+
+    <section id="tab-kpi" class="tab-panel">
+      <div class="panel">
+        <div class="panel-head"><div><h2>KPI / Analytics G1</h2><p>Class A read-only dari source-of-truth Core: occupancy, ADR/RevPAR, finance, folio/payment health, POS/minibar, inventory dan alert operasional. Tidak menulis data.</p></div></div>
+        <div class="notice warning">G1 tidak menggantikan laporan/jurnal canonical dan belum boleh dianggap production-ready tanpa UAT MySQL/MariaDB nyata, restore drill, serta performance check staging.</div>
+        <div class="form-row compact"><label>Dari<input id="kpi-from" type="date" /></label><label>Sampai<input id="kpi-to" type="date" /></label><button id="load-kpi" class="btn">Hitung KPI</button></div>
+        <h3>Hotel Operations</h3><div id="kpi-cards" class="cards"></div>
+        <div id="kpi-roomtypes" class="table-wrap"></div>
+        <div class="grid two">
+          <div><h3>Finance Canonical</h3><div id="kpi-finance" class="cards"></div><div id="kpi-finance-breakdown" class="table-wrap"></div></div>
+          <div><h3>Folio & Payment Health</h3><div id="kpi-folio" class="cards"></div></div>
+        </div>
+        <div class="grid two">
+          <div><h3>POS / Minibar</h3><div id="kpi-pos" class="cards"></div></div>
+          <div><h3>Inventory / Procurement Signal</h3><div id="kpi-inventory" class="cards"></div></div>
+        </div>
+        <h3>Operational Alerts</h3><div id="kpi-alerts" class="table-wrap"></div>
+        <div id="kpi-definitions" class="notice success"></div>
+      </div>
+    </section>
+
+    <section id="tab-rate" class="tab-panel">
+      <div class="grid two">
+        <div class="panel">
+          <h2>Rate Plan</h2>
+          <form id="rate-plan-form" class="form-grid">
+            <input id="rate-plan-id" type="hidden" />
+            <label>Kode<input id="rate-code" required placeholder="BAR" /></label>
+            <label>Nama<input id="rate-name" required placeholder="Best Available Rate" /></label>
+            <label>Tipe kamar<select id="rate-room-type"><option value="">Semua tipe</option></select></label>
+            <label>Base rate<input id="rate-base" type="number" min="0" required /></label>
+            <label>Minimum rate<input id="rate-min" type="number" min="0" value="0" /></label>
+            <label>Maksimum rate<input id="rate-max" type="number" min="0" value="0" /></label>
+            <label class="check"><input id="rate-active" type="checkbox" checked /> Aktif</label>
+            <button class="btn" type="submit">Simpan Rate Plan</button>
+          </form>
+        </div>
+        <div class="panel">
+          <h2>Simulasi Harga</h2>
+          <div class="form-grid">
+            <label>Rate plan<select id="suggest-plan"></select></label>
+            <label>Tipe kamar<select id="suggest-room-type"><option value="">Mengikuti rate plan</option></select></label>
+            <label>Tanggal menginap<input id="suggest-date" type="date" /></label>
+            <label>Lama menginap<input id="suggest-los" type="number" min="1" value="1" /></label>
+            <label>Sumber<select id="suggest-source"><option>Direct</option><option>Booking.com</option><option>Agoda</option><option>Traveloka</option><option>Tiket.com</option></select></label>
+            <button id="run-suggestion" class="btn" type="button">Hitung Saran</button>
+          </div>
+          <div id="suggest-result" class="result-box"></div>
+        </div>
+      </div>
+      <div class="grid two">
+        <div class="panel"><h2>Rule Revenue</h2>
+          <form id="rate-rule-form" class="form-grid">
+            <label>Rate plan<select id="rule-plan"></select></label>
+            <label>Nama rule<input id="rule-name" placeholder="Occupancy > 80%" required /></label>
+            <label>Prioritas<input id="rule-priority" type="number" value="100" min="1" /></label>
+            <label>Adjustment<select id="rule-type"><option value="percent">Persen</option><option value="fixed">Nominal tambah/kurang</option><option value="set">Set harga</option></select></label>
+            <label>Nilai<input id="rule-value" type="number" step="0.01" value="0" /></label>
+            <label class="span2">Kondisi JSON<textarea id="rule-condition" rows="5" placeholder='{"occupancy_gte":80,"weekday_in":[5,6,7]}'></textarea></label>
+            <button class="btn" type="submit">Tambah Rule</button>
+          </form>
+          <p class="hint">Kondisi yang didukung: occupancy_gte/lte, weekday_in (1=Senin..7=Minggu), lead_time_gte/lte, los_gte/lte, source_in.</p>
+        </div>
+        <div class="panel"><h2>Daftar Rate & Rule</h2><div id="rate-list" class="table-wrap"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><h2>Rate Calendar Override</h2><p>Override tanggal tertentu untuk high season, minimum stay, stop-sell, CTA/CTD. Tidak mengubah harga booking lama.</p></div></div>
+        <form id="rate-override-form" class="form-grid">
+          <label>Rate plan<select id="override-plan"></select></label>
+          <label>Tanggal<input id="override-date" type="date" required /></label>
+          <label>Tipe kamar<select id="override-room-type"><option value="">Semua / mengikuti plan</option></select></label>
+          <label>Harga<input id="override-rate" type="number" min="0" required /></label>
+          <label>Minimum stay<input id="override-min-stay" type="number" min="1" max="365" value="1" /></label>
+          <label class="check"><input id="override-stop-sell" type="checkbox" /> Stop sell</label>
+          <label class="check"><input id="override-cta" type="checkbox" /> Closed to arrival</label>
+          <label class="check"><input id="override-ctd" type="checkbox" /> Closed to departure</label>
+          <label class="span2">Catatan<input id="override-note" maxlength="500" /></label>
+          <button class="btn" type="submit">Simpan Override</button>
+        </form>
+        <div id="rate-override-list" class="table-wrap"></div>
+      </div>
+    </section>
+
+    <section id="tab-group" class="tab-panel">
+      <div class="grid two">
+        <div class="panel"><h2>Corporate Account</h2>
+          <form id="company-form" class="form-grid">
+            <label>Kode<input id="company-code" required placeholder="CORP001" /></label><label>Nama perusahaan<input id="company-name" required /></label>
+            <label>Email billing<input id="company-email" type="email" /></label><label>Telepon<input id="company-phone" /></label>
+            <label>Credit limit<input id="company-limit" type="number" min="0" value="0" /></label><label>Term (hari)<input id="company-terms" type="number" min="0" value="0" /></label>
+            <button class="btn" type="submit">Simpan Corporate</button>
+          </form>
+        </div>
+        <div class="panel"><h2>Group Reservation</h2>
+          <form id="group-form" class="form-grid">
+            <label>Nama group<input id="group-name" required placeholder="Rombongan PT ABC" /></label><label>Perusahaan<select id="group-company"><option value="">Tanpa corporate</option></select></label>
+            <label>Arrival<input id="group-arrival" type="date" required /></label><label>Departure<input id="group-departure" type="date" required /></label>
+            <label>Room block<input id="group-room-block" type="number" min="0" value="0" /></label><label>Billing<select id="group-billing"><option value="individual">Individual</option><option value="master">Master</option><option value="split">Split</option></select></label>
+            <button class="btn" type="submit">Buat Group</button>
+          </form>
+        </div>
+      </div>
+      <div id="group-link-panel" class="panel"><div class="panel-head"><div><h2>Hubungkan Booking Existing</h2><p>Group tidak membuat booking langsung. Booking tetap dibuat lewat workflow Kamar & Sewa lalu ditautkan di sini.</p></div></div>
+        <div class="form-row"><label>Group<select id="link-group"></select></label><label>Cari booking<input id="booking-search" placeholder="Nama tamu / kamar / booking ID" /></label><button id="do-booking-search" class="btn secondary">Cari</button></div>
+        <div id="booking-search-results" class="table-wrap"></div>
+      </div>
+      <div class="panel"><h2>Group & Master Folio</h2><div id="group-list" class="table-wrap"></div><div id="group-detail" class="result-box"></div></div>
+    </section>
+
+    <section id="tab-folio" class="tab-panel">
+      <div class="panel">
+        <h2>Advanced Guest Folio (Read-only)</h2>
+        <p>Folio menggabungkan booking, transaksi canonical, deposito dan room-charge POS. Tidak membuat ledger kedua.</p>
+        <div class="form-row"><label>Cari booking<input id="folio-search" placeholder="Nama tamu / kamar / booking ID" /></label><button id="folio-search-btn" class="btn secondary">Cari</button><button id="print-folio" class="btn" disabled>Cetak Folio</button></div>
+        <div id="folio-search-results" class="table-wrap"></div>
+        <div id="folio-detail"></div>
+      </div>
+    </section>
+
+    <section id="tab-procurement" class="tab-panel">
+      <div class="grid two">
+        <div class="panel"><h2>Vendor</h2>
+          <form id="vendor-form" class="form-grid"><label>Kode<input id="vendor-code" required /></label><label>Nama<input id="vendor-name" required /></label><label>Email<input id="vendor-email" type="email" /></label><label>Term (hari)<input id="vendor-terms" type="number" min="0" value="0" /></label><button class="btn" type="submit">Simpan Vendor</button></form>
+        </div>
+        <div class="panel"><h2>Purchase Order</h2>
+          <form id="po-form" class="form-grid">
+            <label>Vendor<select id="po-vendor"></select></label><label>Tanggal<input id="po-date" type="date" /></label>
+            <label>Item<input id="po-item" required placeholder="Air mineral / Linen / Bahan dapur" /></label><label>Qty<input id="po-qty" type="number" min="0.001" step="0.001" value="1" /></label>
+            <label>Unit<input id="po-unit" value="pcs" /></label><label>Harga/unit<input id="po-price" type="number" min="0" value="0" /></label><label>Pajak %<input id="po-tax" type="number" min="0" max="100" value="0" /></label>
+            <label class="span2">Catatan<textarea id="po-notes" rows="2"></textarea></label><button class="btn" type="submit">Buat PO Draft</button>
+          </form>
+          <p class="hint">Versi ini sengaja tidak otomatis menaikkan inventory atau membuat jurnal AP. Pembayaran harus dicatat dulu di Kas & Transaksi, lalu ditautkan ke PO agar tidak ada ledger ganda.</p>
+        </div>
+      </div>
+      <div class="panel"><h2>Daftar Purchase Order</h2><div id="po-list" class="table-wrap"></div><div id="po-detail" class="result-box"></div></div>
+    </section>
+
+    <section id="tab-integrations" class="tab-panel">
+      <div class="notice danger">Channel Manager dan Payment Gateway di build ini adalah <strong>fondasi aman</strong>. Event eksternal hanya dicatat hash/metadata dan tidak otomatis membuat booking atau memposting uang. Aktivasi konektor vendor resmi harus dilakukan sebagai fase terpisah.</div>
+      <div class="grid two">
+        <div id="channel-panel" class="panel"><h2>Channel Mapping</h2>
+          <form id="channel-form" class="form-grid"><label>Channel<input id="channel-code" placeholder="booking.com" /></label><label>External room type<input id="channel-external-room" /></label><label>Internal room type<select id="channel-internal-room"></select></label><label>External rate plan<input id="channel-external-rate" /></label><label>Internal rate plan<select id="channel-internal-rate"><option value="">Tidak dipetakan</option></select></label><button class="btn" type="submit">Simpan Mapping</button></form>
+          <div id="channel-list" class="table-wrap"></div>
+        </div>
+        <div id="payment-panel" class="panel"><h2>Payment Intent</h2>
+          <form id="payment-intent-form" class="form-grid"><label>Booking ID<input id="payment-booking" /></label><label>Provider<input id="payment-provider" placeholder="midtrans/xendit/other" /></label><label>Nominal<input id="payment-amount" type="number" min="0" /></label><button class="btn" type="submit">Buat Intent</button></form>
+          <p class="hint">Payment intent bukan pembayaran. Uang baru dianggap masuk setelah transaksi canonical booking tercatat di sistem lalu ditautkan oleh Finance.</p>
+          <div id="payment-list" class="table-wrap"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <div id="loading" class="loading hidden"><div class="spinner"></div><span>Memproses…</span></div>
+  <script defer src="./assets/growth-suite.js?v=20261006-owner-enterprise-r7"></script>
+</body>
+</html>

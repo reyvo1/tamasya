@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://tamasya.nolink.my.id/sitemap.xml

@@ -1,0 +1,41 @@
+/* TAMASYA FIX48: lapisan poles responsif global (additive-only).
+   Aturan di sini sengaja tidak menimpa komponen; hanya higienitas mobile
+   yang aman untuk seluruh halaman (app, POS, guest-center, ESS). */
+*{-webkit-tap-highlight-color:transparent}
+img,svg,video{max-width:100%}
+@media(max-width:640px){
+  /* Cegah auto-zoom keyboard iOS: input di bawah 16px memicu zoom. */
+  input,select,textarea{font-size:16px}
+  /* Dialog tidak melebihi viewport di layar kecil. */
+  dialog{max-width:calc(100vw - 16px)}
+}
+/* R6: containers grow with their content; exact amounts are never ellipsized. */
+#root :where(.grid,.flex)>:where(div,section,article,label){min-width:0}
+#root :where(input,select,textarea){min-width:0;max-width:100%;box-sizing:border-box}
+#root .glass-card{min-width:0;overflow-wrap:anywhere}
+#root .glass-card>.flex>div{min-width:0}
+#root .glass-card :where(.font-mono,.font-display){overflow-wrap:anywhere}
+#root .glass-card svg{flex-shrink:0}
+#root .tamasya-finance-summary{grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr))}
+#root .tamasya-dashboard-summary{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
+#root .tamasya-dashboard-summary>.glass-card{align-items:flex-start;gap:12px}
+#root .tamasya-dashboard-summary>.glass-card>div:first-child{flex:1;min-width:0}
+#root .tamasya-dashboard-summary>.glass-card>div:last-child{flex-shrink:0}
+.tamasya-metric-value{white-space:normal;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;line-height:1.45}
+#root .tamasya-finance-summary .tamasya-metric-value{font-size:clamp(14px,1.2vw,17px)}
+.tamasya-viewport-layer{box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain;justify-content:center;isolation:isolate}
+.tamasya-viewport-layer:not(.flex-col){align-items:flex-start!important}
+.tamasya-viewport-layer:not(.flex-col)>*{box-sizing:border-box;min-width:0;max-width:100%;max-height:calc(100dvh - 2rem);overflow-y:auto!important;overflow-wrap:anywhere;margin-top:auto;margin-bottom:auto}
+.tamasya-viewport-layer :where(.grid,.flex)>:where(div,label,span){min-width:0}
+.tamasya-viewport-layer :where(input,select,textarea){min-width:0;max-width:100%;box-sizing:border-box}
+.tamasya-viewport-layer .flex.justify-between{gap:12px;flex-wrap:wrap}
+body:has(.tamasya-viewport-layer) :where(#tamasya-report-center-btn,#tamasya-ess-core-launcher){visibility:hidden}
+.ui-master-summary>div{min-width:0;overflow-wrap:anywhere}
+.ui-guest-center-result{grid-template-columns:34px minmax(0,1fr) auto}
+.ui-guest-center-result :where(strong,small),.ess-core-card{overflow-wrap:anywhere}
+@media(max-width:640px){
+  .tamasya-viewport-layer{padding:12px!important}
+  .tamasya-viewport-layer>*{padding:16px;max-height:calc(100dvh - 24px)}
+  .tamasya-viewport-layer .flex.gap-2{flex-wrap:wrap}
+}
+@media print{.tamasya-viewport-layer{display:none!important}}

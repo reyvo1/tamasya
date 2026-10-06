@@ -1,0 +1,62 @@
+TAMASYA PRD CLOSURE R6 — ROOT CAUSE AUDIT
+Date: 2026-10-02
+Repository: reyvo1/testamasya
+Branch: rc1/post-green-owner-harness-v2
+Exact parent: 321e42daa59eb491e3774dfddbce1d650344b689
+
+INPUT EVIDENCE
+- GitHub logs archive: logs_100287425831.zip
+- Checkout SHA in logs: 321e42daa59eb491e3774dfddbce1d650344b689
+
+ROOT CAUSE 1 — FALSE TRIGGER LOSS SIGNAL
+R5 correctly imported database_setup.sql under isolated migration/DBA authority and then created a DML-only runtime account. The runtime smoke subsequently queried information_schema.TRIGGERS using that restricted runtime identity and saw 0 triggers. In the same GitHub run, the comprehensive hotel database import proved 113 tables / 5 triggers, database_verify reported no missing trigger/signature mismatch, and restore evidence proved 5 source / 5 restored triggers. Therefore the schema did not lose the triggers. The failing assertion crossed authority boundaries: MySQL trigger metadata is privilege-filtered, while the runtime account intentionally owns no TRIGGER/DDL/admin grant.
+
+R6 root correction:
+- strict trigger/table/signature proof executes while migration/DBA metadata authority is available;
+- expected objects are derived from source SQL, not a duplicated hard-coded list;
+- runtime remains DML-only and CI explicitly proves trigger-definition visibility is denied;
+- runtime-visible trigger count is informational only and never used as canonical-schema authority;
+- baseline verifier now distinguishes privilege-hidden metadata from actual missing trigger drift and remains fail-closed for strict verification;
+- operator guidance forbids granting TRIGGER merely to make a runtime verifier green.
+
+ROOT CAUSE 2 — PLAYWRIGHT LIVE-LOCATOR RACE
+Browser UAT ran 34 tests: 33 passed and one generic standalone-page wiring sweep timed out on internal-memo.html. The dedicated Internal Memo create/search/archive/restore test passed. The generic sweep iterated live button:nth(i) locators while invoked handlers could re-render #memo-list. An nth target could therefore disappear/reorder and Playwright would auto-wait until the 90-second timeout. The two-node and HQ evidence files were missing only because those later workflow steps were skipped after the browser failure.
+
+R6 root correction:
+- static wiring sweep snapshots initial ElementHandle objects instead of re-querying mutable nth locators;
+- every initially rendered button handler is still invoked;
+- detached/re-rendered controls cannot cause an nth-locator auto-wait deadlock;
+- dedicated business assertions, browser-error checks, 5xx checks, and control-inventory thresholds remain unchanged.
+
+LOCAL DETERMINISTIC EVIDENCE
+- PHP regression: 68/68 PASS
+- JavaScript regression: 21/21 PASS
+- Finance regression: 9/9 PASS
+- Hybrid regression: 33/33 PASS
+- Realtime regression: 16/16 PASS
+- PRD architecture: 5/5 PASS
+- PRD performance: 7/7 PASS
+- PRD deployment: 7/7 PASS
+- PRD scale runtime: 7/7 PASS
+- PRD storage runtime: 7/7 PASS
+- PRD database readiness: 8/8 PASS
+- PRD database authority: 10/10 PASS
+- PRD trigger metadata: 5/5 PASS
+- PRD browser harness: 5/5 PASS
+- Device contract: 9 PASS
+- Database TLS: 4 PASS
+- Migration-authority schema verifier synthetic exact-source check: 113 tables / 5 triggers PASS
+- PHP lint: 128 files PASS
+- JS/MJS syntax: 79 files PASS
+- Python compile: PASS
+- Shell syntax: PASS
+- Workflow YAML parse: PASS
+
+SAFETY / NON-REGRESSION
+- No tax, booking, transaction, journal, shift, Telegram, report, or financial authority logic weakened.
+- Runtime receives no TRIGGER, CREATE, ALTER, DROP, SUPER, or GRANT OPTION privilege.
+- Nginx uncertain-request replay protection remains unchanged.
+- Existing two-node, HQ, concurrency, browser, report/export, Telegram, backup/restore and financial consistency gates remain present.
+
+PENDING EXTERNAL EVIDENCE
+This environment does not own the GitHub Docker/MySQL/Playwright stack. The exact R6 commit must therefore pass the existing GitHub jobs before final freeze. Do not label R6 FINAL until that same-commit run is fully green.

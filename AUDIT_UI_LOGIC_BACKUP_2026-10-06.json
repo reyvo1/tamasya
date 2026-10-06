@@ -1,0 +1,19 @@
+{
+  "backupDate": "2026-10-05",
+  "sourceIsProductionCurrent": false,
+  "transactions": 500,
+  "receipts": 94954600.3,
+  "payments": 88107250,
+  "cash": -5907650,
+  "bank": 12755000.3,
+  "combined": 6847350.3,
+  "target": {
+    "year": "2026",
+    "from": "2026-01-01",
+    "to": "2026-10-06",
+    "target": 100000000,
+    "actual": 86178509.48,
+    "unresolved": 2,
+    "percent": 86.2
+  }
+}

@@ -1,0 +1,32 @@
+LANJUTKAN TAMASYA PRD CLOSURE DARI MACRO CHECKPOINT R4. JANGAN AUDIT DARI NOL DAN JANGAN KEMBALI KE PATCH KECIL.
+
+PARENT GITHUB WAJIB:
+2588681cae91be2823db7067db294545ada2ca30
+branch: rc1/post-green-owner-harness-v2
+
+BUKTI R3:
+- Source/syntax/security GREEN.
+- Full hotel finance/booking/UI/Telegram UAT GREEN: 731/731 PASS, 0 FAIL.
+- R3 storage-init/nocopy root fix berhasil melewati failure lama; api+api2+web start paralel pada fresh volume.
+- PRD deployment job RED berikutnya pada MySQL bootstrap: ERROR 1045 root@localhost.
+
+ROOT CAUSE R4:
+- mysqladmin ping adalah process-liveness, bukan authenticated initialization readiness.
+- Gate dapat lolos saat MySQL official entrypoint/bootstrap belum selesai, lalu query berikutnya race dan gagal authentication.
+
+R4 MACRO ROOT FIX:
+- tests/uat_prd/mysql-authenticated-ready.sh = satu authority readiness MySQL PRD.
+- TCP SELECT 1 harus sukses memakai runtime application account + expected DB.
+- bounded timeout + dead-container detection + docker logs on failure.
+- wrong password wajib ditolak.
+- SaaS runtime DB dan HQ adapter DB memakai contract yang sama.
+- schema import memakai app/schema-owner account, bukan root.
+- SaaS bootstrap membuktikan 113 canonical tables + 5 triggers sebelum API readiness.
+- auxiliary mysql:8.4 CI image dipin digest; upgrade harus disengaja dan diuji.
+- deploy README mendokumentasikan contract agar bukan CI-only patch.
+
+NEXT:
+1. Baca newest GitHub logs dari exact R4 commit.
+2. Jika RED, root-fix failure baru pertama dan tetap dalam macro-wave; jangan lemahkan UAT.
+3. Jika SEMUA job GREEN, freeze exact commit sebagai TAMASYA PRD SOFTWARE FINAL.
+4. Physical device/provider/multi-fault-domain infrastructure tetap commissioning, bukan fake CI proof.

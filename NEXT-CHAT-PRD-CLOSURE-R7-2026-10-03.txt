@@ -1,0 +1,10 @@
+LANJUT TAMASYA PRD CLOSURE R7 DARI EXACT PARENT 0b14263d6a6687299ab49c43a41fbacca14a1f61.
+Repo: reyvo1/testamasya
+Branch: rc1/post-green-owner-harness-v2
+
+R7 memperbaiki tiga akar masalah berdasarkan logs_100303480968.zip:
+1) SaaS fixture tidak memenuhi APP_TIMEZONE + property code/name yang diwajibkan api.php;
+2) trigger integrity membutuhkan migration-authority attestation tanpa memberi TRIGGER/DDL ke runtime DML-only;
+3) POS default sales date stale saat melewati hotel midnight; saleDate baru tetapi filter lama.
+
+Jangan melemahkan UAT. Jika exact R7 GitHub run hijau semua, langsung freeze PRD SOFTWARE FINAL. Jika merah, gunakan failure baru pertama dan diagnostic body/log yang sekarang sudah ditangkap.

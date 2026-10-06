@@ -1,0 +1,7 @@
+TAMASYA PRD Closure R5 handoff
+Parent: e2a3f38a7225da8419a1ed823911bb14a77bdc96
+Branch: rc1/post-green-owner-harness-v2
+Root fix: separate MySQL migration/DBA authority from application runtime authority. Do NOT grant SUPER/DDL to runtime and do NOT disable binary logging to obtain green.
+R4 evidence: source gate GREEN; Full Complete hotel UAT 731/731 PASS; authenticated readiness PASS; first failure ERROR 1419 on canonical CREATE TRIGGER under runtime account.
+R5 adds mysql-bootstrap-runtime-boundary.sh, least-privilege PMS/HQ runtime grants, behavioral privilege-denial tests, and GitHub guards.
+If R5 GitHub all GREEN: freeze exact GREEN commit as TAMASYA PRD SOFTWARE FINAL and produce final source ZIP + SHA-256 + PRD As-Built FINAL + HANDOFF + NEXT-CHAT. If RED: root-fix first new failure only; do not weaken UAT.

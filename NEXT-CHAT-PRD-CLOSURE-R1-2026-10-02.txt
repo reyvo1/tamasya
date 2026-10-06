@@ -1,0 +1,48 @@
+LANJUTKAN TAMASYA DARI PRD CLOSURE R1 CANDIDATE. JANGAN MULAI DARI NOL DAN JANGAN KEMBALI KE NODE 0-PHP MIGRATION.
+
+PARENT LOCKED:
+- commit: 639d811cf6ad4c336b7814f815bb02a76861d6f9
+- GitHub Full Complete UAT run: 36977287162
+- baseline: 731/731 PASS
+
+PRD AUTHORITY:
+- PRD_TAMASYA.txt v1.0 (15 September 2026)
+- PHP tetap canonical PMS/financial authority.
+- Node/worker/HQ/realtime adalah adjacent/optional capability.
+- shared hosting tetap wajib dapat menjalankan core tanpa Redis/cron/Node wajib.
+
+CANDIDATE BUILD:
+- 20261002-prd-closure-r1
+
+PEKERJAAN R1:
+- route/capability lazy loader untuk addon non-core;
+- canonical report center menjadi event-driven, bukan polling 600 ms;
+- opportunistic maintenance tidak berjalan ketika tab hidden;
+- optional addons dikeluarkan dari Service Worker install precache;
+- PRD architecture/performance/deployment regression gates;
+- browser UAT membuktikan lazy loading;
+- GitHub CI menambah simulasi VPS/worker/HQ/SaaS dan real Docker image build.
+
+LOCAL GATES:
+- PHP regression 68/68 PASS
+- JS regression 21/21 PASS
+- finance 9/9 PASS
+- hybrid 33/33 PASS
+- realtime 16 PASS
+- device 9 PASS
+- database TLS 4 PASS
+- PRD architecture 5/5 PASS
+- PRD performance 7/7 PASS
+- PRD deployment 5/5 PASS
+- PHP lint 127/127 PASS
+- JS/MJS syntax 72/72 PASS
+- Python compile + shell syntax + workflow YAML PASS
+
+NEXT GATE WAJIB:
+1. Push candidate source sebagai branch baru dari exact parent locked.
+2. Jalankan .github/workflows/tamasya-enterprise-rc1-uat.yml.
+3. Jangan melemahkan assertion/safety bila merah; root-fix error pertama dan rerun penuh.
+4. FINAL baru boleh dibuat bila source-gate + PRD deployment simulation + full MySQL/browser/two-node/HQ UAT semuanya hijau pada exact commit yang sama.
+5. Setelah hijau, freeze manifest/ZIP/SHA dan update PRD_AS_BUILT_STATUS dari CANDIDATE menjadi FINAL SOFTWARE.
+
+REAL EXTERNAL COMMISSIONING tetap terpisah: provider asli, device fisik, kapasitas hosting nyata, multi-fault-domain DB HA/object-store IAM/autoscaling/DR. Jangan relabel itu sebagai GitHub-proven.

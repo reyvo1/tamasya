@@ -1,0 +1,65 @@
+TAMASYA PRD CLOSURE R2 — LOCAL AUDIT
+Date: 2026-10-02
+
+PARENT / LINEAGE
+- Locked software parent: 639d811cf6ad4c336b7814f815bb02a76861d6f9
+- R1 operator commit: a2889c5
+- R1 GitHub status: reported GREEN by operator in this session.
+- Runtime build ID remains: 20261002-prd-closure-r1
+- R2 production business/runtime diff vs R1: NONE.
+- R2 changes are CI workflow, evidence documentation, and test harnesses only.
+
+R2 PURPOSE
+Close the remaining deterministic PRD software evidence for VPS/realtime/SaaS profiles without changing PHP canonical financial authority.
+
+ADDED EXECUTION EVIDENCE
+1. Horizontal SaaS runtime smoke:
+   - production PHP-FPM image x2 (api + api2)
+   - production Nginx SaaS config
+   - disposable MySQL 8.4 with canonical database_setup.sql
+   - DB-backed api.php?action=ping readiness
+   - 96 concurrent routed reads / 12 workers
+   - private deploy/tests paths denied
+2. Realtime process smoke:
+   - launches services/realtime/server.mjs as actual CLI process
+   - signed ticket, origin guard, property scope reduction
+   - upstream outage => retryable unavailable event
+3. HQ external adapters:
+   - production PHP image + MySQL 8.4
+   - local CA + actual HTTPS socket
+   - exact delivery 200 ACK succeeds
+   - HTTP 202/wrong ACK => uncertain
+   - uncertain delivery not auto-retried
+   - S3 SigV4 conditional PUT + duplicate 412 + GET checksum read-back
+4. Static PRD scale-runtime gate locks these harnesses into CI.
+
+LOCAL EXECUTED RESULTS
+- PHP regression: 68/68 PASS
+- JS regression: 21/21 PASS
+- Finance regression: 9/9 PASS
+- Hybrid regression: 33/33 PASS
+- Realtime unit regression: 16/16 PASS
+- Realtime real-process smoke: 6/6 PASS
+- PRD architecture: 5/5 PASS
+- PRD performance: 7/7 PASS
+- PRD deployment: 5/5 PASS
+- PRD scale-runtime: 5/5 PASS
+- Device ACK contract: 9 assertions PASS
+- Database TLS: 4 assertions PASS
+- PHP lint: 128 files PASS
+- JS/MJS syntax: 74 files PASS
+- Python compile: PASS
+- Shell syntax: PASS
+- GitHub workflow YAML parse: PASS
+
+LOCAL ENVIRONMENT LIMIT
+No Docker daemon is available in this execution environment. Therefore the new container/MySQL/TLS adapter runtime steps cannot truthfully be marked PASS locally. The GitHub workflow is the mandatory execution oracle for those R2 additions.
+
+SAFETY
+- No financial mutation authority moved to worker/realtime/HQ.
+- No production route, PHP business logic, JS runtime bundle, DB schema or migration changed in R2.
+- No old UAT assertion was removed or softened.
+- External real device/provider/cloud multi-fault-domain validation remains commissioning evidence, not CI proof.
+
+FINAL RULE
+R2 is CANDIDATE until the exact R2 commit passes every GitHub job. If GREEN, freeze the exact commit into final FULL ZIP/SHA and mark PRD software status COMPLETE; commissioning-only evidence remains separate.

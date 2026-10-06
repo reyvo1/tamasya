@@ -1,0 +1,70 @@
+TAMASYA PRD CLOSURE R7 — ROOT CAUSE AUDIT
+Date: 2026-10-03
+Repository: reyvo1/testamasya
+Branch: rc1/post-green-owner-harness-v2
+Exact parent / R6 GitHub commit: 0b14263d6a6687299ab49c43a41fbacca14a1f61
+Input evidence: logs_100303480968.zip
+
+EVIDENCE FROM THE EXACT R6 RUN
+- GitHub checkout: 0b14263d6a6687299ab49c43a41fbacca14a1f61.
+- Source/syntax/security job completed green.
+- Completed business scenario assertions: 682/682 PASS; 0 FAIL before browser/two-node/HQ continuation.
+- Browser: 33/34 PASS. The only browser failure was the mobile POS lifecycle.
+- Exact browser mismatch: sale.saleDate expected 2026-10-03 while #sales-to remained 2026-10-02.
+- SaaS runtime bootstrap reached canonical MySQL bootstrap but API readiness repeatedly returned HTTP 500.
+- Existing curl -f readiness discarded the response body, so the old smoke did not expose the startup error body.
+
+ROOT CAUSE A — INVALID SAAS RUNTIME FIXTURE, NOT RANDOM PHP FAILURE
+api.php intentionally requires APP_TIMEZONE plus immutable TAMASYA property identity (ID/code/name) before normal API startup. R6 tests/uat_prd/run_saas_runtime_smoke.sh supplied property ID but omitted APP_TIMEZONE, TAMASYA_PROPERTY_CODE and TAMASYA_PROPERTY_NAME. The test therefore started an invalid deployment fixture and then probed it as if it were production-valid. R7 fixes the fixture contract and captures the last HTTP body plus api/api2/web logs on readiness failure instead of hiding the error behind curl -f.
+
+ROOT CAUSE B — TRIGGER INTEGRITY CROSSED AUTHORITY BOUNDARIES
+R5/R6 correctly separated migration/DBA authority from DML-only runtime authority. MySQL hides information_schema.TRIGGERS from the least-privilege runtime. Runtime startup still needs proof that canonical triggers exist, but granting TRIGGER/DDL to the runtime merely to inspect metadata would destroy least privilege.
+
+R7 implements an explicit release attestation chain:
+1. migration/DBA authority imports the canonical schema;
+2. privileged verifier proves exact canonical tables and trigger signatures;
+3. only after that PASS, migration authority writes current_release, patch_level, exact SHA-256(database_setup.sql) and migration_run_id into schema_release_state;
+4. runtime remains DML-only;
+5. if runtime can directly see trigger metadata, direct metadata remains authoritative;
+6. if metadata is deliberately hidden by least privilege, runtime accepts the delegated proof only when the stored canonical checksum exactly matches its own database_setup.sql and migration_run_id is present;
+7. stale/missing checksum, unknown visibility, or directly visible missing trigger remains fail-closed.
+
+Production provisioning now generates release_attestation.sql as a separate reviewed DBA step. first_install/finalizer/configurator persist canonical source provenance where applicable. Strict database_verify remains the migration/maintenance authority gate; it is not weakened.
+
+ROOT CAUSE C — REAL POS MIDNIGHT ROLLOVER BUG
+The mobile browser test crossed the hotel business date while the POS page stayed open. The sale was created on 2026-10-03, but the sales filter still held the bootstrap value 2026-10-02. This is a real application-state bug, not test flakiness.
+
+R7 adds a dedicated server-authoritative business-date policy. Automatic sales periods follow businessDate/businessMonthStart on every bootstrap/focus refresh and when opening the Sales view, including midnight/month rollover. An operator-selected custom historical period remains untouched. The POS policy and client have explicit cache-busted URLs and SW entries, preventing stale deployed JavaScript from preserving the old behavior.
+
+SAFETY RETAINED
+- PHP remains canonical PMS/financial authority.
+- Runtime DB identity remains DML-only; no TRIGGER, SUPER, CREATE, ALTER, DROP or GRANT OPTION was added.
+- No transaction, tax, journal, split-payment, booking, shift, Telegram, report or owner-read-only rule was weakened.
+- fastcgi_next_upstream stays off; uncertain writes are not replayed across replicas.
+- Existing browser, concurrency, two-node, HQ, backup/restore and evidence gates stay present.
+- No UAT threshold was lowered and no failing business assertion was deleted.
+
+LOCAL DETERMINISTIC R7 EVIDENCE
+- PHP regression: 68/68 PASS
+- JavaScript regression: 21/21 PASS
+- Finance: 9/9 PASS
+- Hybrid: 33/33 PASS
+- Realtime: 16/16 PASS
+- PRD architecture: 5/5 PASS
+- PRD performance: 7/7 PASS
+- PRD deployment: 7/7 PASS
+- PRD scale/runtime: 7/7 PASS
+- PRD storage/runtime: 7/7 PASS
+- PRD database readiness: 8/8 PASS
+- PRD database authority: 11/11 PASS
+- PRD trigger metadata: 5/5 PASS
+- PRD browser harness: 5/5 PASS
+- PRD runtime schema authority: 6/6 PASS
+- PRD provisioning attestation: 5/5 PASS
+- PRD runtime config contract: 4/4 PASS
+- PRD POS business-date policy: 7/7 PASS
+- Device contract: 9 PASS
+- Database TLS: 4 PASS
+
+EXTERNAL GATE
+This local environment does not provide the same GitHub Docker/MySQL/Playwright stack. R7 is a candidate until the exact R7 commit passes every existing GitHub job. Do not label FINAL before that same-commit run is fully green.

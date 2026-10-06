@@ -1,0 +1,18 @@
+TAMASYA PRD CLOSURE R9 APPLY
+
+Required exact parent:
+d698c66710fe86c51a849054009a20bed727e832
+
+cd ~/Desktop/a
+git rev-parse HEAD
+
+Only continue if it prints exactly the parent above.
+
+unzip -o ~/Downloads/TAMASYA-PRD-CLOSURE-R9-PATCH-OVER-d698c66710fe-2026-10-03.zip -d .
+sha256sum -c FILE_CHECKSUMS.sha256
+git status
+git add -A
+git commit -m "TAMASYA PRD closure R9 external adapter runtime path root fix"
+git push origin HEAD
+
+Do not create a new repository or branch. Do not weaken any UAT gate.

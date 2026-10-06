@@ -1,0 +1,4 @@
+Options -Indexes
+<FilesMatch "^(core\.php|install\.php|.*\.sql|control_plane\.php|bootstrap_control\.php|reporting\.php|object_storage\.php|delivery\.php|delivery_worker\.php|archive_report\.php|realtime\.php|upgrade_h2\.php)$">
+    Require all denied
+</FilesMatch>

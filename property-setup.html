@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <script src="./assets/owner-readonly-policy.js?v=20261006-owner-enterprise-r7"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Setup Hotel — TAMASYA</title>
+  <link rel="stylesheet" href="./assets/property-setup.css?v=20261006-owner-enterprise-r7" />
+  <script src="./runtime_config.php?v=20260810-v137"></script>
+  <script defer src="./assets/property-setup.js?v=20260818-r7-booking-draft-room-scope-fix27"></script>
+    <script defer src="./assets/date-display-id.js?v=20260829-fix39-refsafe"></script>
+  <link rel="stylesheet" href="./assets/owner-readonly.css?v=20261006-owner-enterprise-r7" />
+</head>
+<body>
+  <main class="shell" data-owner-readonly-fields>
+    <header class="hero">
+      <div>
+        <div class="eyebrow">TAMASYA • SETUP PROPERTY V137</div>
+        <h1>Setup Hotel / Property</h1>
+        <p>Identitas deployment dikunci dari ENV. Profil property dan master operasional diselesaikan di database property ini.</p>
+      </div>
+      <a class="btn secondary" href="./">Kembali ke Admin</a>
+    </header>
+
+    <section class="notice" id="relationship-note">Memuat hubungan property…</section>
+
+    <section class="panel">
+      <h2>1. Identitas deployment</h2>
+      <p class="muted">Field ini tidak diubah dari browser agar database tidak tertukar antar-hotel/cabang. Company ID adalah afiliasi opsional: gunakan nilai yang sama untuk cabang satu perusahaan, atau biarkan kosong untuk hotel independen. Mode aplikasi tetap fleksibel.</p>
+      <div class="grid identity-grid">
+        <label>Company ID<input id="companyId" readonly /></label>
+        <label>Property ID<input id="propertyId" readonly /></label>
+        <label>Property Code<input id="propertyCode" readonly /></label>
+        <label>Timezone<input id="timezone" readonly /></label>
+        <label>Currency<input id="currency" readonly /></label>
+        <label>Country<input id="countryCode" readonly /></label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>2. Property settings</h2>
+      <div class="grid">
+        <label>Nama Hotel / Property<input id="propertyName" maxlength="190" /></label>
+        <label>Locale<input id="locale" placeholder="id-ID" /></label>
+        <label>Prefix Invoice<input id="invoicePrefix" maxlength="30" /></label>
+        <label>Telepon<input id="phone" maxlength="80" /></label>
+        <label>WhatsApp<input id="whatsapp" maxlength="80" /></label>
+        <label>Email<input id="email" type="email" maxlength="190" /></label>
+        <label class="span2">Alamat<textarea id="address" rows="3" maxlength="2000"></textarea></label>
+        <label class="span2">URL Logo<input id="logoUrl" maxlength="500" placeholder="https://… atau path asset property" /></label>
+        <label>Jam Check-in<input id="checkinTime" type="time" /></label>
+        <label>Jam Check-out<input id="checkoutTime" type="time" /></label>
+        <label>Status setup pajak
+          <select id="taxSetupMode">
+            <option value="pending">Belum diputuskan</option>
+            <option value="configured">Rule pajak dikonfigurasi</option>
+            <option value="not_applicable">Tidak berlaku untuk property ini</option>
+          </select>
+        </label>
+        <label>Status pembayaran
+          <select id="paymentSetupMode">
+            <option value="pending">Belum diputuskan</option>
+            <option value="cash_only">Cash only</option>
+            <option value="configured">Bank/QRIS/metode non-cash dikonfigurasi</option>
+          </select>
+        </label>
+        <div class="span2 decision-help">
+          <strong>Penting:</strong> jumlah rule/rekening hanya menunjukkan data yang ditemukan. Agar checklist hijau, keputusan Pajak dan Pembayaran di atas harus dipilih secara eksplisit lalu klik <b>Simpan Property Settings</b>. Jika memilih “dikonfigurasi”, lengkapi detailnya melalui <a href="./" data-tamasya-tab="finance">Keuangan / Master Kategori / Bank &amp; Pajak</a>.
+        </div>
+      </div>
+      <div class="actions">
+        <button id="save" class="btn">Simpan Property Settings</button>
+        <button id="refresh" data-owner-read-action class="btn secondary">Refresh</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>3. Operational / master data</h2>
+      <p class="muted">Wizard hanya memastikan hubungan antar-modul sudah aman. Nama kategori keuangan tetap bebas sesuai kebutuhan hotel. Jika suatu modul memposting transaksi otomatis, pilih kategori tujuan melalui tombol <b>Pemakaian</b> di Master Kategori Keuangan; kode internal tidak perlu diketahui atau diketik.</p>
+      <div id="checks" class="checks"></div>
+      <div class="links">
+        <a href="./" data-tamasya-tab="rooms">Tipe Kamar & Kamar</a>
+        <a href="./" data-tamasya-tab="finance">Bank & Pajak</a>
+        <a href="./" data-tamasya-tab="staff">Staf</a>
+        <a href="./" data-tamasya-tab="website">Website Property</a>
+        <a href="./multi-property-foundation.html">Company / Cabang / HQ</a>
+      </div>
+    </section>
+
+    <section class="panel ready-panel">
+      <h2>4. Finalisasi</h2>
+      <p id="ready-text">Memeriksa readiness…</p>
+      <button id="finalize" class="btn success" disabled>Tetapkan Property = READY</button>
+    </section>
+
+    <div id="toast" class="toast"></div>
+  </main>
+</body>
+</html>
