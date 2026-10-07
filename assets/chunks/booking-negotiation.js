@@ -1,5 +1,5 @@
-import {f,t} from '../app-core.js?v=20261007-telegram-nego-r12';
-import {Oc} from './app-shared.js?v=20261007-telegram-nego-r12';
+import {f,t} from '../app-core.js?v=20261007-growth-kpi-r13';
+import {Oc} from './app-shared.js?v=20261007-growth-kpi-r13';
 const money=value=>window.TamasyaCurrencyDisplay.formatNumber(value);
 async function requestPrice(bookingId,method='GET',payload=null){
   const suffix=payload&&method==='GET'?`&finalTotal=${encodeURIComponent(payload.finalTotal)}`:'';

@@ -24,12 +24,29 @@ await check('Rate quote uses its plan currency and explicitly identifies the nig
  const usd=api.money(250000.3,'USD');assert.ok(usd.includes('US$'));assert.ok(usd.includes('250.000,30'));assert.ok(!usd.includes('Rp'));
  assert.ok(source.includes('Tarif paket per malam untuk tanggal check-in.'));assert.ok(source.includes("money(rate.rate,rate.plan?.currency||'IDR')"));
 });
-await check('Dashboard KPI refreshes each minute and on focus, with timers cleaned on exit',()=>{
- let tick,listener,cleared=false;window.TamasyaPosBusinessDatePolicy={dateAt:()=> '2026-01-28'};
- window.addEventListener=(event,fn)=>{assert.equal(event,'focus');listener=fn;};
- window.removeEventListener=(event,fn)=>{assert.equal(fn,listener);listener=null;};
+await check('Dashboard KPI refreshes each minute, focus and committed mutation, and cleans all listeners',()=>{
+ let tick,cleared=false;const listeners=new Map();window.TamasyaPosBusinessDatePolicy={dateAt:()=> '2026-01-28'};
+ window.addEventListener=(event,fn)=>listeners.set(event,fn);
+ window.removeEventListener=(event,fn)=>{assert.equal(fn,listeners.get(event));listeners.delete(event);};
  context.setInterval=(fn,delay)=>{assert.equal(delay,60000);tick=fn;return 7;};context.clearInterval=id=>{assert.equal(id,7);cleared=true;};
- effects=[];states=[];api.TamasyaGrowthKpiPanel();const cleanup=effects[0]();tick();assert.equal(states[0],'2026-01-28');assert.equal(states[1](3),4);listener();assert.equal(states.length,4);cleanup();assert.equal(listener,null);assert.equal(cleared,true);effects=[];states=[];
+ effects=[];states=[];api.TamasyaGrowthKpiPanel();const cleanup=effects[0]();tick();assert.equal(states[0],'2026-01-28');assert.equal(states[1](3),4);listeners.get('focus')();listeners.get('tamasya-node-resolved')();assert.equal(states.length,6);cleanup();assert.equal(listeners.size,0);assert.equal(cleared,true);effects=[];states=[];
+});
+await check('Incomplete or mismatched KPI payload never masquerades as four zero metrics',async()=>{
+ for(const body of [{},{occupancyPct:0,adr:0,revpar:0,soldRoomNights:0,from:'2026-01-27',to:'2026-01-27'}]){
+  response={ok:true,body:{success:true,data:body}};await assert.rejects(()=>api.tamasyaGrowthRead('kpis',{from:'2026-01-28',to:'2026-01-28'}));
+ }
+ response={ok:true,body:{success:true,data:{occupancyPct:0,adr:0,revpar:0,soldRoomNights:0,from:'2026-01-28',to:'2026-01-28'}}};
+ assert.equal((await api.tamasyaGrowthRead('kpis',{from:'2026-01-28',to:'2026-01-28'})).soldRoomNights,0);
+ response={ok:true,body:{success:true,data:{rate:250000.3}}};
+});
+await check('KPI deep link carries exact same hotel day and Suite refreshes reports without resetting forms',()=>{
+ assert.ok(source.includes('focus=kpi&from='));assert.ok(source.includes('&to='));
+ const growth=read('assets/growth-suite.js'),enterprise=read('assets/enterprise-suite.js');
+ assert.ok(growth.includes("if(name==='kpi'&&feature('kpi'))loadKpi()"));assert.ok(growth.includes("dates.get('from')"));
+ assert.ok(growth.includes('TamasyaPosBusinessDatePolicy.dateAt'));assert.ok(enterprise.includes('TamasyaPosBusinessDatePolicy.dateAt'));
+ const refresh=enterprise.slice(enterprise.indexOf('async function refreshVisibleReports'),enterprise.indexOf('async function boot'));
+ assert.ok(refresh.includes('loadForecast()')&&refresh.includes('loadAccounting()'));assert.ok(!refresh.includes('render()')&&!refresh.includes('boot()'));
+ for(const page of ['growth-suite.html','enterprise-suite.html'])assert.ok(read(page).includes('pos-business-date-policy.js'));
 });
 await check('Rate selection never falls back to an unrelated room type',()=>{
  const plans=[{id:'d',active:1,room_type:'Deluxe'},{id:'s',active:1,room_type:'Standard'},{id:'all',active:1,room_type:''},{id:'inactive',active:0,room_type:'Standard'}];

@@ -67,6 +67,7 @@ jobs:
           php tests/finance-cash-tax-regression.php
           node tests/finance-cash-tax-regression.mjs
           php tests/booking-negotiation-regression.php
+          php tests/growth-kpi-regression.php
           php tests/telegram-charge-payment-regression.php
           php tests/telegram-shift-regression.php
           php tests/finance-regression.php

@@ -490,7 +490,7 @@ test('Fresh service worker precaches the exact React module for offline import',
     // Memo does not import the PMS React bundle, so the vendor cannot be warmed
     // accidentally before this check of the newly installed precache.
     await page.goto(BASE+'/internal-memo.html');
-    const vendor='assets/chunks/vendor-react.js?v=20261007-telegram-nego-r12';
+    const vendor='assets/chunks/vendor-react.js?v=20261007-growth-kpi-r13';
     const cached=await page.evaluate(async vendor=>{
       await navigator.serviceWorker.register('./sw.js');await navigator.serviceWorker.ready;
       const cacheKeys=await caches.keys();
@@ -600,7 +600,7 @@ test('Activated Growth stays in native Dashboard and reservation views with exac
    }
    if(action==='growth-suite'&&request.method()==='GET'){
      let data;
-     if(command==='kpis')data={occupancyPct:50,adr:4640000.3,revpar:2320000.3,soldRoomNights:2};
+     if(command==='kpis')data={from:url.searchParams.get('from'),to:url.searchParams.get('to'),generatedAt:new Date().toISOString(),currentOccupiedRooms:1,occupancyPct:50,adr:4640000.3,revpar:2320000.3,soldRoomNights:2};
      else if(command==='bootstrap')data={ratePlans:[{id:'ui_standard',name:'UI Standard',room_type:'Standard',active:1},{id:'wrong_type',room_type:'Deluxe',active:1}]};
      else if(command==='rate-suggestion'){quotes.push(Object.fromEntries(url.searchParams));data={rate:999999999.3,stopSell:false};}
      else return route.continue();
@@ -670,4 +670,30 @@ test('Negotiated checkout web form previews PBJT and changes unpaid price withou
   await page.screenshot({path:path.join(LOGDIR,`browser-negotiated-checkout-${info.project.name}.png`),fullPage:true});
   writeEvidence('negotiated-checkout',info,{fixture,result,errors});
   await page.evaluate(async id=>{const r=await fetch('./api.php?action=bookings-status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,status:'cancelled'})});const b=await r.json();if(r.status!==200||b.success!==true)throw new Error(JSON.stringify(b));},fixture.id);
+});
+
+
+test('Real Growth Dashboard and automatic detail share hotel day and nonzero canonical KPI',async({page},info)=>{
+ const errors=[],writes=[];page.on('pageerror',e=>errors.push(e.message));
+ page.on('request',r=>{if(r.url().includes('action=growth-suite')&&r.method()!=='GET')writes.push(r.url());});
+ await page.goto('/index.html');await expect(page.locator('#tab-dashboard')).toBeVisible();await ensureBrowserOpenShift(page);
+ const fixture=await page.evaluate(async()=>{
+  const api=async(action,body=null)=>{const r=await fetch('./api.php?action='+action,{method:body?'POST':'GET',headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});const d=await r.json();if(!r.ok||d.success===false)throw new Error(JSON.stringify(d));return d;};
+  const hotel=await api('hotel-data'),today=window.TamasyaPosBusinessDatePolicy.dateAt(new Date(),window.TAMASYA_RUNTIME_CONFIG.propertyTimezone),end=new Date(today+'T12:00:00Z');end.setUTCDate(end.getUTCDate()+1);
+  const number=String(8300000+Math.floor(Math.random()*100000));await api('rooms',{number,type:hotel.rooms[0].type,price:200000,floor:1});
+  const b=await api('bookings',{guestName:'Browser Real KPI '+Date.now(),roomNumber:number,checkIn:today,checkOut:end.toISOString().slice(0,10),totalAmount:220000,paymentStatus:'unpaid',bookingSource:'Direct',lifecycleIntent:'check_in_now',broadcast:false});
+  const k=await api('growth-suite&command=kpis&from='+today+'&to='+today);return {id:b.bookingId,today,k:k.data};
+ });
+ await page.reload();await expect(page.locator('#tab-dashboard')).toBeVisible();await page.locator('#tab-dashboard').click();
+ const widget=page.locator('#tamasya-growth-kpi-mini');await expect(widget).toBeVisible();await expect(widget).toContainText('Kamar aktif sekarang:');
+ expect(fixture.k.soldRoomNights).toBeGreaterThan(0);expect(fixture.k.adr).toBeGreaterThan(0);
+ const formatted=await page.evaluate(k=>[new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(k.occupancyPct)+'%',window.TamasyaCurrencyDisplay.formatRupiah(k.adr),window.TamasyaCurrencyDisplay.formatRupiah(k.revpar),new Intl.NumberFormat('id-ID',{maximumFractionDigits:0}).format(k.soldRoomNights)],fixture.k);
+ await expect(widget.locator('.tamasya-growth-metric strong')).toHaveText(formatted);
+ const detail=widget.getByRole('link',{name:'Detail KPI →'});const url=new URL(await detail.getAttribute('href'),BASE);expect(url.searchParams.get('from')).toBe(fixture.today);expect(url.searchParams.get('to')).toBe(fixture.today);
+ await detail.click();await expect(page.locator('#kpi-from')).toHaveValue(fixture.today);await expect(page.locator('#kpi-to')).toHaveValue(fixture.today);
+ await expect(page.locator('#kpi-status')).toContainText('Diperbarui');await expect(page.locator('#kpi-cards .card strong').nth(0)).toHaveText(formatted[0]);await expect(page.locator('#kpi-cards .card strong').nth(1)).toHaveText(formatted[1]);await expect(page.locator('#kpi-cards .card strong').nth(2)).toHaveText(formatted[2]);
+ await page.locator('#load-kpi').click();await expect(page.locator('#kpi-status')).toContainText('Diperbarui');
+ await expectNoPageHorizontalOverflow(page);expect(errors).toEqual([]);expect(writes).toEqual([]);
+ await page.screenshot({path:path.join(LOGDIR,`browser-real-kpi-detail-${info.project.name}.png`),fullPage:true});writeEvidence('real-kpi-parity',info,{fixture,formatted,errors,writes});
+ await page.evaluate(async id=>{const r=await fetch('./api.php?action=bookings-status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,status:'cancelled'})});const d=await r.json();if(!r.ok||!d.success)throw new Error(JSON.stringify(d));},fixture.id);
 });

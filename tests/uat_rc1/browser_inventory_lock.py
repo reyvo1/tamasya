@@ -13,6 +13,7 @@ SPEC = ROOT / 'tests/uat_rc1/browser/rc1-ui.spec.mjs'
 source = SPEC.read_text(encoding='utf-8', errors='strict')
 
 required = [
+    'Real Growth Dashboard and automatic detail share hotel day and nonzero canonical KPI',
     'Activated Growth stays in native Dashboard and reservation views with exact Rupiah cents',
     'PMS interactive login, session persistence and module dock',
     'PRD shared-hosting shell lazy-loads optional addons only when their capability is opened',

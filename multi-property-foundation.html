@@ -1,16 +1,16 @@
 <!doctype html>
 <html lang="id">
 <head>
-  <script src="./assets/currency-display.js?v=20261007-telegram-nego-r12"></script>
+  <script src="./assets/currency-display.js?v=20261007-growth-kpi-r13"></script>
   <meta charset="utf-8" />
-  <script src="./assets/owner-readonly-policy.js?v=20261007-telegram-nego-r12"></script>
+  <script src="./assets/owner-readonly-policy.js?v=20261007-growth-kpi-r13"></script>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>TAMASYA Multi-Property Readiness</title>
   <meta name="theme-color" content="#17324d" />
   <script src="./runtime_config.php?v=20260807-enterprise112"></script>
-  <link rel="stylesheet" href="./assets/multi-property-foundation.css?v=20261007-telegram-nego-r12" />
+  <link rel="stylesheet" href="./assets/multi-property-foundation.css?v=20261007-growth-kpi-r13" />
     <script defer src="./assets/date-display-id.js?v=20260829-fix39-refsafe"></script>
-  <link rel="stylesheet" href="./assets/owner-readonly.css?v=20261007-telegram-nego-r12" />
+  <link rel="stylesheet" href="./assets/owner-readonly.css?v=20261007-growth-kpi-r13" />
 </head>
 <body>
 <header class="topbar">
@@ -24,5 +24,5 @@
   <section class="grid two"><div class="panel"><h2>Property Manifest</h2><p>Manifest hanya Admin dan dipakai kelak untuk mendaftarkan hotel ke HQ Hub.</p><button id="manifest" class="btn secondary">Tampilkan Manifest</button><pre id="manifest-result"></pre></div><div class="panel"><h2>Kontrak & Kapabilitas</h2><p>Cross-property reservation dan HQ writeback sengaja OFF sampai signed/idempotent workflow benar-benar dibuat dan diuji.</p><button id="contracts" class="btn secondary">Lihat Kontrak</button><pre id="contract-result"></pre></div></section>
   <section class="panel"><h2>Antrean Snapshot HQ v2</h2><p>Pending berarti belum diterima pusat. ACK menandakan snapshot sudah disimpan. Antrean memerlukan direktori private dari administrator.</p><button id="outbox" class="btn secondary">Periksa Antrean</button><div id="outbox-result"></div></section><section class="panel danger"><h2>Aturan Arsitektur yang Dikunci</h2><ul><li>Satu database operasional per hotel/cabang.</li><li>Setiap hotel boleh punya Primary + Standby sendiri.</li><li>HQ menggunakan database terpisah dan hanya menerima snapshot/event minimum.</li><li>HQ tidak boleh INSERT/UPDATE langsung ke database cabang.</li><li>Booking lintas cabang kelak harus dibuat oleh Primary hotel tujuan dengan operation ID yang sama.</li><li>PBJT, shift kas, POS, kunci, housekeeping dan jurnal operasional tetap milik cabang masing-masing.</li></ul></section>
 </main>
-<div id="toast"></div><script src="./assets/multi-property-foundation.js?v=20261007-telegram-nego-r12"></script>
+<div id="toast"></div><script src="./assets/multi-property-foundation.js?v=20261007-growth-kpi-r13"></script>
 </body></html>

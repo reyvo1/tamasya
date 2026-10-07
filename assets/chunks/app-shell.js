@@ -1,9 +1,9 @@
 const tamasyaMoney=window.TamasyaCurrencyDisplay.formatNumber;
-import {TamasyaViewportLayer,TamasyaFloatingLayer} from "./viewport-layer.js?v=20261007-telegram-nego-r12";
+import {TamasyaViewportLayer,TamasyaFloatingLayer} from "./viewport-layer.js?v=20261007-growth-kpi-r13";
 /*! TAMASYA split2 chunk: original FIX28R5 function body with safe mutable-cache reset bridge for Gpe. */
-import {A$,Ape,Bu,CA,CK,Ed,Eh,Epe,GR,G_,Hh,Hle,Ipe,Kpe,Kv,Mle,Mz,Ole,PA,PK,Ph,Pr,Pu,Qg,Qle,Rpe,TA,Uo,W_,Wg,Xle,Yle,_K,_c,_pe,db,ej,f,ml,moe,noe,oE,poe,ppe,qi,qm,rz,soe,t as tamasyaJsx,tamasyaResetClusterEndpointCache,un,yo,zm,zr} from "../app-core.js?v=20261007-telegram-nego-r12";
-import {$pe,A6,AK,B$,B6,Di,Ec,Eu,Fpe,Fv,Fx,G1,Hpe,Id,Ii,Ja,Jh,Jz,K$,KL,Kr,L$,LL,Ld,Md,Mh,NK,NL,N_,O6,Oc,P$,Q1,Q6,R$,R_,S6,SA,SK,TK,Tl,U0,Ue,Um,Un,Upe,Uz,Vi,Vpe,Vx,X1,Z_,Zk,_u,a$,aE,aj,as,cE,cpe,dpe,e6,e8,ei,fE,fh,fi,g6,h6,hj,la,ls,m$,mK,mpe,nj,ope,q$,ql,qpe,qv,sj,tE,tamasyaMergeRoomCanonical,tamasyaReservationInventoryOpen,tamasyaReservationWindowHasConflict,tp,u$,upe,vK,vr,vu,w6,wA,wK,x$,xs,xz,yK,yi,z_,zpe} from "./app-shared.js?v=20261007-telegram-nego-r12";
-import {TAMASYA_DOMAIN_NAV,tamasyaVisibleDomainMembers,tamasyaVisibleModuleCards} from "../navigation-registry.js?v=20261007-telegram-nego-r12";
+import {A$,Ape,Bu,CA,CK,Ed,Eh,Epe,GR,G_,Hh,Hle,Ipe,Kpe,Kv,Mle,Mz,Ole,PA,PK,Ph,Pr,Pu,Qg,Qle,Rpe,TA,Uo,W_,Wg,Xle,Yle,_K,_c,_pe,db,ej,f,ml,moe,noe,oE,poe,ppe,qi,qm,rz,soe,t as tamasyaJsx,tamasyaResetClusterEndpointCache,un,yo,zm,zr} from "../app-core.js?v=20261007-growth-kpi-r13";
+import {$pe,A6,AK,B$,B6,Di,Ec,Eu,Fpe,Fv,Fx,G1,Hpe,Id,Ii,Ja,Jh,Jz,K$,KL,Kr,L$,LL,Ld,Md,Mh,NK,NL,N_,O6,Oc,P$,Q1,Q6,R$,R_,S6,SA,SK,TK,Tl,U0,Ue,Um,Un,Upe,Uz,Vi,Vpe,Vx,X1,Z_,Zk,_u,a$,aE,aj,as,cE,cpe,dpe,e6,e8,ei,fE,fh,fi,g6,h6,hj,la,ls,m$,mK,mpe,nj,ope,q$,ql,qpe,qv,sj,tE,tamasyaMergeRoomCanonical,tamasyaReservationInventoryOpen,tamasyaReservationWindowHasConflict,tp,u$,upe,vK,vr,vu,w6,wA,wK,x$,xs,xz,yK,yi,z_,zpe} from "./app-shared.js?v=20261007-growth-kpi-r13";
+import {TAMASYA_DOMAIN_NAV,tamasyaVisibleDomainMembers,tamasyaVisibleModuleCards} from "../navigation-registry.js?v=20261007-growth-kpi-r13";
 const t={...tamasyaJsx,jsx:(type,props,key)=>tamasyaJsx.jsx(type,window.TamasyaOwnerReadOnlyPolicy.componentProps(sessionStorage.getItem('hotel_staff_role')||sessionStorage.getItem('hotel_role'),props),key),jsxs:(type,props,key)=>tamasyaJsx.jsxs(type,window.TamasyaOwnerReadOnlyPolicy.componentProps(sessionStorage.getItem('hotel_staff_role')||sessionStorage.getItem('hotel_role'),props),key)};
 function TamasyaDomainNavGroup(props) {
   const { id, label, icon, members, allowed, current, onSelect, role } = props;

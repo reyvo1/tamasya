@@ -104,9 +104,10 @@ function tamasyaGrowthAudit(PDO $pdo,array $actor,string $action,string $entityT
 
 /** Read-only consolidated folio. Canonical transactions remain the only financial source of truth. */
 function tamasyaGrowthBookingFolio(PDO $pdo,string $bookingId): array {
-    $stmt=$pdo->prepare("SELECT id,guestName,guestPhone,guestEmail,roomNumber,roomType,checkIn,checkOut,status,paymentStatus,totalAmount,roomCharge,extraCharge,amountPaid,balanceDue,refundAmount,bookingSource,securityDepositRequired,securityDepositRequiredAmount,securityDepositReceived,securityDepositRefunded,securityDepositForfeited,securityDepositHeld,securityDepositStatus FROM bookings WHERE id=? LIMIT 1");
+    $stmt=$pdo->prepare("SELECT id,guestName,guestPhone,guestEmail,roomNumber,roomType,checkIn,checkOut,status,paymentStatus,totalAmount,roomCharge,extraCharge,extras,discountAmount,amountPaid,balanceDue,refundAmount,bookingSource,securityDepositRequired,securityDepositRequiredAmount,securityDepositReceived,securityDepositRefunded,securityDepositForfeited,securityDepositHeld,securityDepositStatus FROM bookings WHERE id=? LIMIT 1");
     $stmt->execute([$bookingId]);$booking=$stmt->fetch(PDO::FETCH_ASSOC)?:null;
     if(!$booking)throw new InvalidArgumentException('Booking folio tidak ditemukan.');
+    $projection=tamasyaGrowthBookingCharges($booking);$booking['roomCharge']=$projection['roomNet'];$booking['extraCharge']=$projection['services'];
     $tx=$pdo->prepare("SELECT id,type,amount,baseAmount,taxAmount,taxRate,`date`,serviceDate,description,bankAccountId,transactionKind,documentNumber,sourceEntity,sourceEntityId,reconciliationStatus FROM transactions WHERE bookingId=? OR (sourceEntity='booking' AND sourceEntityId=?) ORDER BY COALESCE(serviceDate,`date`),createdAt,id");
     $tx->execute([$bookingId,$bookingId]);$transactions=$tx->fetchAll(PDO::FETCH_ASSOC)?:[];
     $dep=[]; if(tamasyaGrowthTableExists($pdo,'guest_security_deposit_ledger')){$s=$pdo->prepare("SELECT id,entry_type,amount,payment_method,bank_account_id,reason,transaction_id,created_at FROM guest_security_deposit_ledger WHERE booking_id=? ORDER BY created_at,id");$s->execute([$bookingId]);$dep=$s->fetchAll(PDO::FETCH_ASSOC)?:[];}
@@ -114,6 +115,40 @@ function tamasyaGrowthBookingFolio(PDO $pdo,string $bookingId): array {
     $income=0.0;$expense=0.0;
     foreach($transactions as $row){if(strtolower((string)$row['type'])==='income')$income+=(float)$row['amount'];else $expense+=(float)$row['amount'];}
     return ['booking'=>$booking,'transactions'=>$transactions,'depositLedger'=>$dep,'posRoomCharges'=>$pos,'summary'=>['transactionIncome'=>round($income,2),'transactionExpense'=>round($expense,2),'netTransactions'=>round($income-$expense,2),'bookingTotal'=>(float)$booking['totalAmount'],'amountPaid'=>(float)$booking['amountPaid'],'balanceDue'=>(float)$booking['balanceDue']]];
+}
+
+/** Shared read projection: never changes a booking or creates extra charges. */
+function tamasyaGrowthBookingCharges(array $booking): array {
+    $gross=max(0.0,round((float)($booking['totalAmount']??0),2));
+    $discount=min($gross,max(0.0,round((float)($booking['discountAmount']??0),2)));
+    $net=round($gross-$discount,2);
+    $extras=tamasyaDecodeBookingExtras($booking['extras']??null);
+    $service=$extras?tamasyaBookingServiceExtrasTotal($extras):max(0.0,(float)($booking['extraCharge']??0));
+    $service=round(min($net,max(0.0,$service)),2);$room=round(max(0.0,$net-$service),2);
+    return ['roomNet'=>$room,'roomGross'=>round($room+$discount,2),'services'=>$service,'discount'=>$discount,'netTotal'=>$net];
+}
+
+/** Half-open room-night interval. Active overdue rooms stay occupied until checkout. */
+function tamasyaGrowthStayWindow(array $booking,DateTimeImmutable $horizon,?DateTimeImmutable $now=null): ?array {
+    $status=strtolower((string)($booking['status']??''));
+    if(!in_array($status,['reserved','active','completed'],true))return null;
+    $ciDate=substr((string)($booking['checkIn']??''),0,10);
+    if(!tamasyaGrowthValidDate($ciDate))return null;
+    $ci=new DateTimeImmutable($ciDate);$now=$now??new DateTimeImmutable();$today=$now->setTime(0,0);
+    $actual=substr(trim((string)($booking['actualCheckOutAt']??'')),0,10);
+    $coDate=$actual!==''?$actual:substr((string)($booking['checkOut']??''),0,10);
+    if(!tamasyaGrowthValidDate($coDate))return null;
+    $co=new DateTimeImmutable($coDate);if($co<$ci)return null;
+    if($co==$ci)$co=$ci->modify('+1 day');
+    if($status==='active'&&$actual===''){
+        if(!empty($booking['isOpenEnded']))$co=$horizon>$ci?$horizon:$ci->modify('+1 day');
+        elseif($ci<=$today&&$co<=$today){$due=trim((string)($booking['checkoutDueAt']??$booking['scheduledCheckOutAt']??''));try{$dueAt=new DateTimeImmutable($due!==''?$due:$co->format('Y-m-d').' 12:00:00');}catch(Throwable $e){$dueAt=$co->setTime(12,0);}if($co<$today||$now>=$dueAt)$co=$today->modify('+1 day');}
+    }
+    return ['from'=>$ci,'to'=>$co,'nights'=>max(1,(int)$ci->diff($co)->days)];
+}
+function tamasyaGrowthOverlapNights(DateTimeImmutable $stayFrom,DateTimeImmutable $stayTo,DateTimeImmutable $from,DateTimeImmutable $to): int {
+    $start=$stayFrom>$from?$stayFrom:$from;$end=$stayTo<$to?$stayTo:$to;
+    return $end>$start?(int)$start->diff($end)->days:0;
 }
 
 function tamasyaGrowthOperationalKpis(PDO $pdo,string $fromDate,string $toDate): array {
@@ -132,32 +167,23 @@ function tamasyaGrowthOperationalKpis(PDO $pdo,string $fromDate,string $toDate):
 
     // Range predicate keeps idx_bookings_dates usable. Row-level overlap is then
     // calculated in PHP to allocate roomCharge proportionally across stay nights.
-    $stmt=$pdo->prepare("SELECT id,roomType,checkIn,checkOut,status,roomCharge,totalAmount,extras,discountAmount,bookingSource,createdAt,isOpenEnded,stayMode,actualCheckOutAt,checkoutDueAt FROM bookings WHERE status IN ('reserved','active','completed') AND checkIn<=? AND (checkOut>=? OR (isOpenEnded=1 AND status='active'))");
+    $stmt=$pdo->prepare("SELECT id,roomNumber,roomType,checkIn,checkOut,status,roomCharge,extraCharge,totalAmount,extras,discountAmount,amountPaid,balanceDue,paymentStatus,bookingSource,createdAt,isOpenEnded,stayMode,actualCheckOutAt,checkoutDueAt,scheduledCheckOutAt FROM bookings WHERE status IN ('reserved','active','completed') AND checkIn<=? AND (checkOut>=? OR status='active')");
     $stmt->execute([$toDate,$fromDate]);$bookings=$stmt->fetchAll(PDO::FETCH_ASSOC)?:[];
-    $sold=0;$roomRevenue=0.0;$losTotal=0;$leadDaysTotal=0;$leadCount=0;$direct=0;$ota=0;
-    $periodStart=$from->setTime(0,0);$periodEnd=$to->modify('+1 day')->setTime(0,0);
+    $sold=0;$roomRevenue=0.0;$losTotal=0;$leadDaysTotal=0;$leadCount=0;$direct=0;$ota=0;$counted=0;$invalid=0;$overdue=0;$folioTotals=['booking_count'=>0,'booking_total'=>0.0,'amount_paid'=>0.0,'balance_due'=>0.0,'paid_count'=>0,'partial_count'=>0,'unpaid_count'=>0];
+    $periodStart=$from->setTime(0,0);$periodEnd=$to->modify('+1 day')->setTime(0,0);$now=new DateTimeImmutable();$today=$now->setTime(0,0);
     foreach($bookings as $b){
-        try{
-            $ci=new DateTimeImmutable(substr((string)$b['checkIn'],0,10));
-            $rawEnd=substr((string)($b['checkOut']?:$b['checkIn']),0,10);
-            if(!empty($b['actualCheckOutAt']))$rawEnd=substr((string)$b['actualCheckOutAt'],0,10);
-            $co=new DateTimeImmutable($rawEnd);
-            if(!empty($b['isOpenEnded']) && (string)$b['status']==='active'){
-                // Active open-ended stays occupy the room until the selected period end
-                // (or actual checkout when one exists). This avoids silently dropping an
-                // occupied room after the placeholder checkout date.
-                $co=$periodEnd;
-            }
-        }catch(Throwable $e){continue;}
-        if($co<=$ci)$co=$ci->modify('+1 day');
-        $stayNights=max(1,(int)$ci->diff($co)->days);$overlapStart=$ci>$periodStart?$ci:$periodStart;$overlapEnd=$co<$periodEnd?$co:$periodEnd;
-        $overlap=max(0,(int)$overlapStart->diff($overlapEnd)->days);if($overlap<=0)continue;
-        $sold+=$overlap;$losTotal+=$stayNights;
-        $roomCharge=array_filter(tamasyaDecodeBookingExtras($b['extras']??null),'tamasyaBookingExtraIsRoomCharge')?max(0.0,(float)($b['totalAmount']??0)-(float)($b['discountAmount']??0)-tamasyaBookingServiceExtrasTotal($b['extras']??null)):max(0.0,(float)($b['roomCharge']??$b['totalAmount']??0));$allocated=$roomCharge*($overlap/$stayNights);$roomRevenue+=$allocated;
+        $stay=tamasyaGrowthStayWindow($b,$periodEnd,$now);if(!$stay){$invalid++;continue;}
+        $ci=$stay['from'];$co=$stay['to'];$stayNights=$stay['nights'];
+        $overlap=tamasyaGrowthOverlapNights($ci,$co,$periodStart,$periodEnd);if($overlap<=0)continue;
+        $counted++;$sold+=$overlap;$losTotal+=$stayNights;$charges=tamasyaGrowthBookingCharges($b);
+        $folioTotals['booking_count']++;$folioTotals['booking_total']+=$charges['netTotal'];$folioTotals['amount_paid']+=(float)$b['amountPaid'];$folioTotals['balance_due']+=(float)$b['balanceDue'];$payStatus=strtolower((string)$b['paymentStatus']);if(isset($folioTotals[$payStatus.'_count']))$folioTotals[$payStatus.'_count']++;
+        if($b['status']==='active'&&empty($b['actualCheckOutAt'])&&empty($b['isOpenEnded'])&&$co->format('Y-m-d')>(string)$b['checkOut'])$overdue++;
+        $roomCharge=$charges['roomNet'];$allocated=$roomCharge*($overlap/$stayNights);$roomRevenue+=$allocated;
         $type=trim((string)($b['roomType']??'Tidak diketahui'))?:'Tidak diketahui';if(!isset($roomTypes[$type]))$roomTypes[$type]=['roomCount'=>0,'availableRoomNights'=>0,'roomNights'=>0,'roomRevenue'=>0.0,'occupancyPct'=>0.0,'adr'=>0.0,'revpar'=>0.0];$roomTypes[$type]['roomNights']+=$overlap;$roomTypes[$type]['roomRevenue']+=$allocated;
         if(isOtaBookingSource((string)($b['bookingSource']??'')))$ota++;else $direct++;
         if(!empty($b['createdAt'])){$created=strtotime((string)$b['createdAt']);$arrival=strtotime($ci->format('Y-m-d'));if($created!==false&&$arrival!==false&&$arrival>=$created){$leadDaysTotal+=(int)floor(($arrival-$created)/86400);$leadCount++;}}
     }
+    $occupiedStmt=$pdo->prepare("SELECT COUNT(DISTINCT roomNumber) FROM bookings WHERE status='active' AND checkIn<=? AND actualCheckOutAt IS NULL");$occupiedStmt->execute([$today->format('Y-m-d')]);$occupiedNow=(int)$occupiedStmt->fetchColumn();
     foreach($roomTypes as &$rt){$rt['roomRevenue']=round((float)$rt['roomRevenue'],2);$rt['occupancyPct']=$rt['availableRoomNights']>0?round($rt['roomNights']/$rt['availableRoomNights']*100,2):0.0;$rt['adr']=$rt['roomNights']>0?round($rt['roomRevenue']/$rt['roomNights'],2):0.0;$rt['revpar']=$rt['availableRoomNights']>0?round($rt['roomRevenue']/$rt['availableRoomNights'],2):0.0;}unset($rt);
 
     // Cancellation is a booking-creation cohort, so numerator and denominator use
@@ -174,8 +200,7 @@ function tamasyaGrowthOperationalKpis(PDO $pdo,string $fromDate,string $toDate):
     $breakdownStmt->execute([$fromDate,$toDate]);$finance['byTransactionKind']=$breakdownStmt->fetchAll(PDO::FETCH_ASSOC)?:[];
 
     // Folio/payment health for stays overlapping the selected period.
-    $folioStmt=$pdo->prepare("SELECT COUNT(*) AS booking_count,COALESCE(SUM(totalAmount),0) AS booking_total,COALESCE(SUM(amountPaid),0) AS amount_paid,COALESCE(SUM(balanceDue),0) AS balance_due,COALESCE(SUM(paymentStatus='paid'),0) AS paid_count,COALESCE(SUM(paymentStatus='partial'),0) AS partial_count,COALESCE(SUM(paymentStatus='unpaid'),0) AS unpaid_count FROM bookings WHERE status IN ('reserved','active','completed') AND checkIn<=? AND (checkOut>=? OR (isOpenEnded=1 AND status='active'))");
-    $folioStmt->execute([$toDate,$fromDate]);$fh=$folioStmt->fetch(PDO::FETCH_ASSOC)?:[];
+    $fh=$folioTotals;
     $overdueStmt=$pdo->query("SELECT COUNT(*) AS booking_count,COALESCE(SUM(balanceDue),0) AS balance_due FROM bookings WHERE status IN ('reserved','active','completed') AND balanceDue>0.01 AND checkOut<CURDATE() AND NOT (isOpenEnded=1 AND status='active')");$od=$overdueStmt->fetch(PDO::FETCH_ASSOC)?:[];
     $folioHealth=['bookingCount'=>(int)($fh['booking_count']??0),'bookingTotal'=>round((float)($fh['booking_total']??0),2),'amountPaid'=>round((float)($fh['amount_paid']??0),2),'balanceDue'=>round((float)($fh['balance_due']??0),2),'paidCount'=>(int)($fh['paid_count']??0),'partialCount'=>(int)($fh['partial_count']??0),'unpaidCount'=>(int)($fh['unpaid_count']??0),'overdueBalanceBookingCount'=>(int)($od['booking_count']??0),'overdueBalanceAmount'=>round((float)($od['balance_due']??0),2)];
     if(tamasyaGrowthTableExists($pdo,'guest_security_deposits')){$ds=$pdo->query("SELECT COUNT(*) AS held_count,COALESCE(SUM(held_balance),0) AS held_amount FROM guest_security_deposits WHERE held_balance>0.01")->fetch(PDO::FETCH_ASSOC)?:[];$folioHealth['heldDepositCount']=(int)($ds['held_count']??0);$folioHealth['heldDepositAmount']=round((float)($ds['held_amount']??0),2);}
@@ -202,6 +227,8 @@ function tamasyaGrowthOperationalKpis(PDO $pdo,string $fromDate,string $toDate):
 
     $systemAlerts=['critical'=>0,'warning'=>0,'info'=>0,'other'=>0];if(tamasyaGrowthTableExists($pdo,'system_alerts')){$as=$pdo->query("SELECT LOWER(severity) severity,COUNT(*) alert_count FROM system_alerts WHERE acknowledged_at IS NULL GROUP BY LOWER(severity)");foreach($as->fetchAll(PDO::FETCH_ASSOC)?:[] as $ar){$sev=(string)($ar['severity']??'other');if(!array_key_exists($sev,$systemAlerts))$sev='other';$systemAlerts[$sev]+=(int)($ar['alert_count']??0);}}
     $alerts=[];
+    if($overdue>0)$alerts[]=['severity'=>'warning','code'=>'active_past_checkout','title'=>'Kamar masih aktif melewati checkout rencana','value'=>$overdue,'detail'=>'Tetap dihitung terisi. Periksa perpanjangan atau checkout; KPI tidak menambah tagihan otomatis.'];
+    if($invalid>0)$alerts[]=['severity'=>'warning','code'=>'invalid_stay_dates','title'=>'Tanggal menginap booking tidak valid','value'=>$invalid,'detail'=>'Periksa tanggal sumber melalui audit booking.'];
     if($availableNights>0&&$sold>$availableNights)$alerts[]=['severity'=>'critical','code'=>'occupancy_over_100','title'=>'Room nights melebihi inventory fisik','value'=>$sold-$availableNights,'detail'=>'Periksa overbooking, day-use, atau definisi inventory kamar.'];
     if($finance['unresolvedLiveTaxCount']>0)$alerts[]=['severity'=>'critical','code'=>'unresolved_live_tax','title'=>'Transaksi income live belum memiliki tax snapshot final','value'=>$finance['unresolvedLiveTaxCount'],'detail'=>'Gunakan audit/finance workflow canonical; KPI tidak memperbaiki transaksi.'];
     if($finance['disputedCount']>0)$alerts[]=['severity'=>'warning','code'=>'disputed_transactions','title'=>'Transaksi berstatus disputed pada periode','value'=>$finance['disputedCount'],'detail'=>'Tinjau rekonsiliasi Keuangan.'];
@@ -211,15 +238,15 @@ function tamasyaGrowthOperationalKpis(PDO $pdo,string $fromDate,string $toDate):
     if(($systemAlerts['critical']+$systemAlerts['warning']+$systemAlerts['info']+$systemAlerts['other'])>0)$alerts[]=['severity'=>'info','code'=>'open_system_alerts','title'=>'System alerts belum diakui','value'=>array_sum($systemAlerts),'detail'=>'Buka monitoring/audit untuk detail alert canonical.'];
 
     return [
-        'from'=>$fromDate,'to'=>$toDate,'days'=>$days,'rooms'=>$rooms,'availableRoomNights'=>$availableNights,'soldRoomNights'=>$sold,
+        'generatedAt'=>date(DATE_ATOM),'source'=>'canonical_bookings','currentOccupiedRooms'=>$occupiedNow,'overdueActiveBookings'=>$overdue,'countedBookings'=>$counted,'invalidStayBookings'=>$invalid,'from'=>$fromDate,'to'=>$toDate,'days'=>$days,'rooms'=>$rooms,'availableRoomNights'=>$availableNights,'soldRoomNights'=>$sold,
         'occupancyPct'=>$availableNights>0?round($sold/$availableNights*100,2):0,
         'roomRevenue'=>round($roomRevenue,2),'adr'=>$sold>0?round($roomRevenue/$sold,2):0,'revpar'=>$availableNights>0?round($roomRevenue/$availableNights,2):0,
-        'averageLengthOfStay'=>$bookings?round($losTotal/max(1,count($bookings)),2):0,'averageLeadTimeDays'=>$leadCount?round($leadDaysTotal/$leadCount,2):0,
+        'averageLengthOfStay'=>$counted?round($losTotal/$counted,2):0,'averageLeadTimeDays'=>$leadCount?round($leadDaysTotal/$leadCount,2):0,
         'cancelledBookings'=>$cancelled,'bookingCreatedCount'=>$createdCount,'cancellationRatePct'=>$createdCount?round($cancelled/$createdCount*100,2):0,
         'channelMix'=>['direct'=>$direct,'nonDirect'=>$ota], 'roomTypes'=>$roomTypes,
         'finance'=>$finance,'folioHealth'=>$folioHealth,'pos'=>$pos,'inventory'=>$inventory,'procurement'=>$procurement,'systemAlerts'=>$systemAlerts,'alerts'=>$alerts,
         'definitions'=>[
-            'occupancy'=>'Sold room nights / seluruh kamar fisik terkonfigurasi x hari; belum mengurangi out-of-order inventory.',
+            'occupancy'=>'Malam kamar booking reserved/active/completed yang overlap periode / seluruh kamar fisik x hari. Checkout aktual adalah batas akhir eksklusif; booking aktif lewat checkout tetap terisi sampai ditutup. Durasi terbuka aktif memakai batas akhir periode. Belum mengurangi out-of-order inventory.',
             'roomRevenue'=>'roomCharge booking dialokasikan proporsional ke malam yang overlap; bukan cash/journal revenue. Booking dengan tarif malam heterogen/negosiasi adalah estimasi periodisasi sampai tersedia nightly segment ledger canonical.',
             'roomTypeHistory'=>'KPI tipe kamar membaca roomType booking saat ini. Riwayat pindah kamar lintas tipe belum dapat dipisah per malam tanpa room-segment ledger; jangan gunakan breakdown tipe kamar untuk audit historis transfer.',
             'finance'=>'Posting raw income/expense canonical dari transactions berdasarkan posting date; bukan P&L atau arus kas.',
@@ -233,7 +260,11 @@ function tamasyaGrowthOperationalKpis(PDO $pdo,string $fromDate,string $toDate):
 
 function tamasyaGrowthOccupancyPctForDate(PDO $pdo,string $stayDate,?string $roomType=null): float {
     $roomSql="SELECT COUNT(*) FROM rooms";$args=[];if($roomType!==null&&$roomType!==''){$roomSql.=" WHERE type=?";$args[]=$roomType;}$s=$pdo->prepare($roomSql);$s->execute($args);$rooms=(int)$s->fetchColumn();if($rooms<=0)return 0.0;
-    $sql="SELECT COUNT(DISTINCT roomNumber) FROM bookings WHERE status IN ('reserved','active') AND DATE(checkIn)<=? AND (DATE(COALESCE(checkOut,checkIn))>? OR (isOpenEnded=1 AND status='active') OR (stayMode='short_time' AND DATE(checkIn)=?))";$args=[$stayDate,$stayDate,$stayDate];if($roomType!==null&&$roomType!==''){$sql.=" AND roomType=?";$args[]=$roomType;}$s=$pdo->prepare($sql);$s->execute($args);return round(min(100,((int)$s->fetchColumn())/$rooms*100),2);
+    if(!tamasyaGrowthValidDate($stayDate))throw new InvalidArgumentException('Tanggal occupancy tidak valid.');
+    $sql="SELECT roomNumber,checkIn,checkOut,status,isOpenEnded,actualCheckOutAt,checkoutDueAt,scheduledCheckOutAt FROM bookings WHERE status IN ('reserved','active') AND checkIn<=?";$args=[$stayDate];if($roomType!==null&&$roomType!==''){$sql.=" AND roomType=?";$args[]=$roomType;}$s=$pdo->prepare($sql);$s->execute($args);
+    $from=new DateTimeImmutable($stayDate);$to=$from->modify('+1 day');$occupied=[];
+    foreach($s->fetchAll(PDO::FETCH_ASSOC)?:[] as $b){$window=tamasyaGrowthStayWindow($b,$to);if($window&&tamasyaGrowthOverlapNights($window['from'],$window['to'],$from,$to)>0)$occupied[(string)$b['roomNumber']]=true;}
+    return round(min(100,count($occupied)/$rooms*100),2);
 }
 function tamasyaGrowthRuleMatches(array $condition,array $ctx): bool {
     foreach($condition as $key=>$value){

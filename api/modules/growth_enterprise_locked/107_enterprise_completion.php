@@ -92,12 +92,10 @@ function tamasyaEnterpriseTransactionAllocatedTotal(PDO $pdo,string $transaction
     $s=$pdo->prepare($sql);$s->execute($params);return round((float)$s->fetchColumn(),2);
 }
 function tamasyaEnterpriseBookingChargeSource(PDO $pdo,string $bookingId): array {
-    $b=tamasyaEnterpriseFetch($pdo,"SELECT id,guestName,roomNumber,totalAmount,roomCharge,extraCharge,discountAmount FROM bookings WHERE id=?",[$bookingId]);
+    $b=tamasyaEnterpriseFetch($pdo,"SELECT id,guestName,roomNumber,totalAmount,roomCharge,extraCharge,extras,discountAmount FROM bookings WHERE id=?",[$bookingId]);
     if(!$b)throw new InvalidArgumentException('Booking tidak ditemukan.');
-    $room=max(0,round((float)($b['roomCharge']??0),2));$extra=max(0,round((float)($b['extraCharge']??0),2));$discount=max(0,round((float)($b['discountAmount']??0),2));$total=max(0,round((float)($b['totalAmount']??0),2));
-    $derived=round($room+$extra-$discount,2);
-    if(abs($derived-$total)>0.02){$room=max(0,round($total-$extra+$discount,2));}
-    return ['booking'=>$b,'charges'=>['room_charge'=>$room,'extra_charge'=>$extra,'discount'=>$discount],'netTotal'=>$total];
+    $p=tamasyaGrowthBookingCharges($b);
+    return ['booking'=>$b,'charges'=>['room_charge'=>$p['roomGross'],'extra_charge'=>$p['services'],'discount'=>$p['discount']],'netTotal'=>$p['netTotal']];
 }
 function tamasyaEnterpriseChargeAllocatedTotal(PDO $pdo,string $bookingId,string $chargeType,?string $excludeId=null,bool $lock=false): float {
     $sql="SELECT COALESCE(SUM(amount),0) FROM growth_folio_charge_allocations WHERE booking_id=? AND charge_type=?";$params=[$bookingId,$chargeType];
@@ -378,7 +376,7 @@ function tamasyaEnterpriseRevenueForecast(PDO $pdo,int $days=30): array {
     // Bulk-read bookings once per window. This avoids one SQL query per forecast day
     // while keeping the calculation transparent and deterministic.
     $fetchWindow=static function(DateTimeImmutable $from,DateTimeImmutable $to) use($pdo): array {
-        $stmt=$pdo->prepare("SELECT id,roomNumber,checkIn,checkOut,roomCharge,totalAmount,status FROM bookings WHERE status IN ('reserved','active','completed') AND DATE(checkIn)<? AND DATE(COALESCE(checkOut,DATE_ADD(checkIn,INTERVAL 1 DAY)))>?");
+        $stmt=$pdo->prepare("SELECT id,roomNumber,checkIn,checkOut,roomCharge,extraCharge,totalAmount,extras,discountAmount,status,isOpenEnded,actualCheckOutAt,checkoutDueAt,scheduledCheckOutAt,stayMode FROM bookings WHERE status IN ('reserved','active','completed') AND DATE(checkIn)<? AND (DATE(COALESCE(checkOut,DATE_ADD(checkIn,INTERVAL 1 DAY)))>? OR status='active')");
         $stmt->execute([$to->format('Y-m-d'),$from->format('Y-m-d')]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC)?:[];
     };
@@ -389,13 +387,9 @@ function tamasyaEnterpriseRevenueForecast(PDO $pdo,int $days=30): array {
         $daily=[];
         for($d=$from;$d<$to;$d=$d->modify('+1 day'))$daily[$d->format('Y-m-d')]=['rooms'=>[],'revenue'=>0.0];
         foreach($bookings as $b){
-            try{$ci=new DateTimeImmutable(substr((string)$b['checkIn'],0,10));}catch(Throwable $e){continue;}
-            $coRaw=trim((string)($b['checkOut']??''));
-            try{$co=$coRaw!==''?new DateTimeImmutable(substr($coRaw,0,10)):$ci->modify('+1 day');}catch(Throwable $e){$co=$ci->modify('+1 day');}
-            if($co<=$ci)$co=$ci->modify('+1 day');
-            $nights=max(1,(int)$ci->diff($co)->days);
-            $roomRevenue=max(0.0,(float)($b['roomCharge']??0));
-            if($roomRevenue<=0)$roomRevenue=max(0.0,(float)($b['totalAmount']??0));
+            $stay=tamasyaGrowthStayWindow($b,$to);if(!$stay)continue;
+            $ci=$stay['from'];$co=$stay['to'];$nights=$stay['nights'];
+            $roomRevenue=tamasyaGrowthBookingCharges($b)['roomNet'];
             $perNight=$roomRevenue/$nights;
             $start=$ci>$from?$ci:$from;$stop=$co<$to?$co:$to;
             for($d=$start;$d<$stop;$d=$d->modify('+1 day')){
@@ -421,7 +415,7 @@ function tamasyaEnterpriseRevenueForecast(PDO $pdo,int $days=30): array {
         $sumRooms+=$projected;$sumRevenue+=$projectedRevenue;
     }
     $histSold=array_sum(array_column($weekday,'sold'));$histRevenue=array_sum(array_column($weekday,'revenue'));$histDays=56;
-    return ['generatedAt'=>date(DATE_ATOM),'days'=>$days,'rooms'=>$rooms,'historicalReference'=>['from'=>$historyStart->format('Y-m-d'),'to'=>$historyEnd->modify('-1 day')->format('Y-m-d'),'occupancyPct'=>($rooms*$histDays)>0?round($histSold/($rooms*$histDays)*100,2):0,'adr'=>$histSold>0?round($histRevenue/$histSold,2):0,'weekday'=>$weekday],'summary'=>['projectedRoomNights'=>$sumRooms,'projectedRevenue'=>round($sumRevenue,2),'projectedAdr'=>$sumRooms?round($sumRevenue/$sumRooms,2):0,'availableRoomNights'=>$rooms*$days,'projectedOccupancyPct'=>$rooms*$days?round($sumRooms/($rooms*$days)*100,2):0],'daily'=>$rows,'method'=>'Transparent weekday baseline: max(on-books rooms, average occupied rooms for the same weekday over the previous 8 weeks), capped by inventory. Revenue uses max(on-books room revenue, projected rooms × historical same-weekday ADR). Bulk booking reads avoid per-day SQL queries.','warning'=>'Forecast operasional, bukan jaminan pendapatan dan bukan jurnal akuntansi.'];
+    return ['generatedAt'=>date(DATE_ATOM),'days'=>$days,'rooms'=>$rooms,'historicalReference'=>['from'=>$historyStart->format('Y-m-d'),'to'=>$historyEnd->modify('-1 day')->format('Y-m-d'),'occupancyPct'=>($rooms*$histDays)>0?round($histSold/($rooms*$histDays)*100,2):0,'adr'=>$histSold>0?round($histRevenue/$histSold,2):0,'weekday'=>$weekday],'summary'=>['projectedRoomNights'=>$sumRooms,'projectedRevenue'=>round($sumRevenue,2),'projectedAdr'=>$sumRooms?round($sumRevenue/$sumRooms,2):0,'availableRoomNights'=>$rooms*$days,'projectedOccupancyPct'=>$rooms*$days?round($sumRooms/($rooms*$days)*100,2):0],'daily'=>$rows,'method'=>'Transparent weekday baseline: max(on-books rooms, average occupied rooms for the same weekday over the previous 8 weeks), capped by inventory. Revenue uses max(on-books room revenue, projected rooms × historical same-weekday ADR). Bulk booking reads avoid per-day SQL queries.','warning'=>'Forecast operasional, bukan jaminan pendapatan dan bukan jurnal akuntansi. Durasi terbuka aktif diasumsikan terisi sampai akhir horizon; nilai kamar dialokasikan rata, tanpa menambah tagihan.'];
 }
 
 function tamasyaEnterpriseAccountingSummary(PDO $pdo,?string $asOf=null): array {

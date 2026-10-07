@@ -40,9 +40,12 @@ _,eboot=call('enterprise_bootstrap','bootstrap',method='GET',action='enterprise-
 check('Enterprise Completion is enabled in disposable UAT',estatus.get('success') is True,estatus.get('data'))
 
 # Booking dedicated to Growth/Enterprise tests: no production/live recipient or payment provider.
+fixture_room='91'+str(int(uuid.uuid4().hex[:6],16))
+room_status,room_created=request('rooms','POST',{'number':fixture_room,'type':'SIM Deluxe','price':200000,'floor':1},run+'_room')
+check('Dedicated Growth KPI room created through canonical API',room_status==200 and room_created.get('success') is not False,room_created)
 booking_payload={
     'guestName':'SIM Enterprise Guest','guestPhone':'08000000999','guestEmail':'enterprise-uat@example.invalid',
-    'roomNumber':'109','checkIn':str(future),'checkOut':str(future+datetime.timedelta(days=2)),
+    'roomNumber':fixture_room,'checkIn':str(future),'checkOut':str(future+datetime.timedelta(days=2)),
     'totalAmount':440000,'paymentStatus':'unpaid','bookingSource':'Direct','broadcast':False
 }
 status,b=request('bookings','POST',booking_payload,run+'_booking')
@@ -61,6 +64,40 @@ _,suggest=call('rate_suggestion','rate-suggestion',method='GET',query={'planId':
 check('Rate suggestion returns deterministic positive rate',float((suggest.get('data') or {}).get('rate') or 0)>0,suggest.get('data'))
 _,kpi=call('growth_kpi','kpis',method='GET',query={'from':str(today.replace(day=1)),'to':str(today)})
 check('Growth KPI returns report data',isinstance(kpi.get('data'),dict),kpi.get('data'))
+
+# Dedicated canonical reservation is temporarily projected through edge-case dates.
+# These are disposable CI fixture changes only; restore every field before business UAT.
+if booking_id:
+    fields=['checkIn','checkOut','status','isOpenEnded','actualCheckOutAt','extras','roomCharge','extraCharge','discountAmount']
+    original=db('SELECT '+','.join(fields)+' FROM bookings WHERE id=?',[booking_id])[0]
+    before_transactions=int(db('SELECT COUNT(*) n FROM transactions')[0]['n'])
+    baseline=call('kpi_today_before_fixture','kpis',method='GET',query={'from':str(today),'to':str(today)})[1]['data']
+    forecast_before=call('forecast_before_fixture','revenue-forecast',method='GET',action='enterprise-suite',query={'days':7})[1]['data']['daily'][0]
+    def kpi_case(name,changes):
+        db('UPDATE bookings SET '+','.join(k+'=?' for k in changes)+' WHERE id=?',list(changes.values())+[booking_id])
+        return call(name,'kpis',method='GET',query={'from':str(today),'to':str(today)})[1]['data']
+    try:
+        overdue=kpi_case('kpi_active_overdue',{'checkIn':str(today-datetime.timedelta(days=2)),'checkOut':str(today-datetime.timedelta(days=1)),'status':'active','isOpenEnded':0,'actualCheckOutAt':None})
+        check('Active overdue booking contributes exactly one occupied night today',overdue['soldRoomNights']==baseline['soldRoomNights']+1 and overdue['currentOccupiedRooms']==baseline['currentOccupiedRooms']+1,overdue)
+        check('Active overdue room revenue is allocated without inventing billing',abs(overdue['roomRevenue']-baseline['roomRevenue']-440000/3)<0.02,overdue)
+        open_kpi=kpi_case('kpi_open_ended_today',{'isOpenEnded':1})
+        forecast=call('forecast_open_ended','revenue-forecast',method='GET',action='enterprise-suite',query={'days':7})[1]['data']
+        check('Enterprise forecast includes current open-ended room beyond placeholder checkout',forecast['daily'][0]['onBooksRooms']==forecast_before['onBooksRooms']+1 and all(x['onBooksRooms']>=1 for x in forecast['daily']),forecast['daily'])
+        early=kpi_case('kpi_early_checkout',{'checkIn':str(today-datetime.timedelta(days=7)),'checkOut':str(today+datetime.timedelta(days=3)),'status':'completed','isOpenEnded':0,'actualCheckOutAt':str(today-datetime.timedelta(days=2))+' 12:00:00'})
+        check('Early completed checkout before today cannot generate positive absolute-difference nights',early['soldRoomNights']==baseline['soldRoomNights'] and abs(early['roomRevenue']-baseline['roomRevenue'])<0.01,early)
+        check('Folio KPI and LOS use the same actually overlapping bookings',early['folioHealth']['bookingCount']==baseline['folioHealth']['bookingCount'] and early['averageLengthOfStay']==baseline['averageLengthOfStay'],early)
+        extras=json.dumps([{'id':'uat_kpi_extension','total':220000,'price':220000,'qty':1,'allocationType':'room','taxKind':'extension'},{'id':'uat_kpi_service','total':110000,'price':110000,'qty':1,'allocationType':'extra'}])
+        classified=kpi_case('kpi_room_service_classification',{'checkIn':str(today),'checkOut':str(today+datetime.timedelta(days=1)),'status':'active','actualCheckOutAt':None,'extras':extras,'roomCharge':110000,'extraCharge':330000})
+        check('Growth computes room extension as room revenue despite stale storage classification',abs(classified['roomRevenue']-baseline['roomRevenue']-330000)<0.01,classified)
+        folio=call('folio_shared_read_projection','folio',method='GET',query={'bookingId':booking_id})[1]['data']['booking']
+        check('Growth folio preserves service-only extraCharge and room extension revenue',float(folio['roomCharge'])==330000 and float(folio['extraCharge'])==110000,folio)
+        forecast=call('forecast_shared_room_projection','revenue-forecast',method='GET',action='enterprise-suite',query={'days':7})[1]['data']
+        check('Enterprise on-books revenue uses same room/service classification as Growth',abs(forecast['daily'][0]['onBooksRevenue']-forecast_before['onBooksRevenue']-330000)<0.01,forecast['daily'][0])
+    finally:
+        db('UPDATE bookings SET '+','.join(k+'=?' for k in fields)+' WHERE id=?',[original[k] for k in fields]+[booking_id])
+    restored=call('kpi_today_after_fixture_restore','kpis',method='GET',query={'from':str(today),'to':str(today)})[1]['data']
+    check('KPI/forecast reads do not create cash receipts or journal source transactions',int(db('SELECT COUNT(*) n FROM transactions')[0]['n'])==before_transactions and restored['soldRoomNights']==baseline['soldRoomNights'] and restored['roomRevenue']==baseline['roomRevenue'])
+
 
 # Corporate/group and link/unlink booking.
 _,corp=call('company_save','company-save',{'code':'CORP'+run[-5:].upper(),'name':'UAT Corporate','billingEmail':'billing@example.invalid','phone':'080000001','creditLimit':10000000,'paymentTermsDays':30,'status':'active'})
