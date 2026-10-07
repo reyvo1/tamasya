@@ -4,7 +4,7 @@
   const RELEASE = 'V137-POS-ARCHIVE-READABLE';
   const ALLOWED_ROLES = new Set(['admin', 'manager', 'finance', 'receptionist']);
   const PAGE_SIZE = 10;
-  const money = (value) => `Rp ${Number(value || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}`;
+  const money = (value) => window.TamasyaCurrencyDisplay.formatRupiah(Number(value || 0));
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
   }[char]));

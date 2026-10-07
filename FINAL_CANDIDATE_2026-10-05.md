@@ -1,4 +1,6 @@
-> Kandidat terbaru: `20261007-hybrid-identity-r9`. Lihat `GITHUB_UAT_R8_ROOT_CAUSE_2026-10-07.md` untuk normalisasi identitas Telegram dan forwarding memo hybrid, beserta bukti log R8. Seluruh perbaikan R2–R8 tetap disertakan.
+> Kandidat terbaru: `20261007-growth-ui-r10`. Lihat `GROWTH_ENTERPRISE_UI_FIX_2026-10-07.md` untuk integrasi native Growth, filter laporan dan format Rupiah. Semua perbaikan R2–R9 tetap disertakan.
+
+> Riwayat R9: `20261007-hybrid-identity-r9`. Lihat `GITHUB_UAT_R8_ROOT_CAUSE_2026-10-07.md` untuk normalisasi identitas Telegram dan forwarding memo hybrid, beserta bukti log R8. Seluruh perbaikan R2–R8 tetap disertakan.
 
 > Riwayat R8: `20261006-github-uat-r8`. Lihat `GITHUB_UAT_LOG_AUDIT_2026-10-06.md` untuk klasifikasi log GitHub, perbaikan simulator Telegram, eksekusi skrip tanpa executable bit, dropdown mobile, dan pemeriksaan geometri UI. Semua perbaikan R2–R7 tetap disertakan.
 

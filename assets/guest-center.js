@@ -18,7 +18,7 @@
   const esc = (value) => String(value == null ? '' : value).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const role = () => String(sessionStorage.getItem('hotel_role') || sessionStorage.getItem('hotel_staff_role') || '').trim().toLowerCase();
   const loggedIn = () => sessionStorage.getItem('hotel_logged_in') === 'true';
-  const money = (value) => 'Rp ' + Math.max(0, Number(value || 0)).toLocaleString('id-ID');
+  const money = (value) => window.TamasyaCurrencyDisplay.formatRupiah(Math.max(0, Number(value || 0)));
   const dateLabel = (value) => {
     if (!value) return '-';
     const d = new Date(value);

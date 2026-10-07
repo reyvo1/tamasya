@@ -3,7 +3,7 @@
   const state={data:{},offline:false,currentFolio:null,currentGroup:null,currentPo:null,endpoint:null};
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
-  const money=n=>new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(Number(n||0));
+  const money=n=>window.TamasyaCurrencyDisplay.formatRupiah(Number(n||0));
   const num=(n,d=2)=>new Intl.NumberFormat('id-ID',{maximumFractionDigits:d}).format(Number(n||0));
   const localDate=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const today=()=>localDate();

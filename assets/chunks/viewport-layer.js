@@ -1,5 +1,5 @@
 // Keep full-screen dialogs outside page animation and sticky-navigation stacking contexts.
-import {f,t,F_} from "./vendor-react.js?v=20261007-hybrid-identity-r9";
+import {f,t,F_} from "./vendor-react.js?v=20261007-growth-ui-r10";
 export function TamasyaFloatingLayer({children}) {
   return F_().createPortal(children,document.body);
 }

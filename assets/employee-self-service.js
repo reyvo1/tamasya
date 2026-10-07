@@ -9,7 +9,7 @@
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const T = { account:'Akun Saya', subtitle:'Cuti & Gaji Saya', leave:'Cuti Saya', salary:'Gaji Saya', approvals:'Persetujuan Cuti', request:'Ajukan Cuti', type:'Jenis Cuti', start:'Mulai', end:'Selesai', reason:'Alasan', submit:'Kirim Pengajuan', close:'Tutup', pending:'Menunggu', approved:'Disetujui', rejected:'Ditolak', cancelled:'Dibatalkan', annual:'Cuti Tahunan', sick:'Sakit', permission:'Izin', family:'Keluarga', unpaid:'Cuti Tanpa Gaji', other:'Lainnya', noLeave:'Belum ada pengajuan cuti.', noSalary:'Belum ada slip gaji yang diterbitkan.', period:'Periode', base:'Gaji Pokok', allowances:'Tunjangan', deductions:'Potongan', bonus:'Bonus', net:'Gaji Bersih', status:'Status', downloadCsv:'Unduh CSV', printPdf:'Cetak / Simpan PDF', approve:'Setujui', reject:'Tolak', cancel:'Batalkan', refresh:'Muat Ulang', sent:'Pengajuan cuti berhasil dikirim.', decide:'Keputusan cuti berhasil disimpan.', paid:'Dibayar', printed:'Diterbitkan', sentSlip:'Terkirim', day:'hari', days:'hari', loading:'Memuat data akun…', error:'Gagal memuat data akun.', leaveMenu:'Ajukan Cuti Saya' };
   const t = (k) => T[k] || k;
-  const money = (n) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(Number(n||0));
+  const money = (n) => window.TamasyaCurrencyDisplay.formatRupiah(Number(n||0));
   const statusText = (s) => { const k=String(s||'').toLowerCase(); return k==='sent'?t('sentSlip'):t(k); };
   const typeText = (s) => t(String(s||'').toLowerCase());
   const dayText = () => t('days');

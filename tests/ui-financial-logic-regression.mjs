@@ -4,6 +4,7 @@ import vm from 'node:vm';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const window={TAMASYA_RUNTIME_CONFIG:{propertyTimezone:'Asia/Makassar'}};
 vm.runInNewContext(read('assets/canonical-business-policy.js'),{window,Intl,Date});
+vm.runInNewContext(read('assets/currency-display.js'),{window,Intl});
 const policy=window.TAMASYA_BUSINESS_POLICY;
 let passed=0;
 const check=(name,fn)=>{fn();passed++;console.log('PASS '+name);};
@@ -55,8 +56,8 @@ check('Saved tax remains unknown until supported by a valid snapshot',()=>{
 check('Fractional rupiah and property-date month defaults remain visible and consistent',()=>{
  const feature=read('assets/chunks/feature-shared.js');
  const start=feature.indexOf('function Ve('),end=feature.indexOf('function t8(',start);
- const format=new Function(feature.slice(start,end)+';return Ve;')();
- assert.ok(format(250000.30).includes('250.000,3'));
+ const format=new Function('window',feature.slice(start,end)+';return Ve;')(window);
+ assert.ok(format(250000.30).includes('250.000,30'));
  const shared=read('assets/chunks/app-shared.js');const dateStart=shared.indexOf('function ls('),dateEnd=shared.indexOf('function Mh(',dateStart);
  const dateAt=new Function('window',shared.slice(dateStart,dateEnd)+';return ls;')(window);
  assert.equal(dateAt(new Date('2026-01-31T17:00:00Z')),'2026-02-01');

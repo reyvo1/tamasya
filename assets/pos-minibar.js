@@ -7,7 +7,7 @@
   };
 
   const $ = (id) => document.getElementById(id);
-  const money = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(n || 0));
+  const money = (n) => window.TamasyaCurrencyDisplay.formatRupiah(Number(n || 0));
   const number = (n, digits = 3) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: digits }).format(Number(n || 0));
   const esc = (v) => String(v ?? '').replace(/[&<>'"]/g, (ch) => ({ '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;' }[ch]));
   const role = sessionStorage.getItem('hotel_role') || '';
@@ -663,7 +663,7 @@
   }
 
   function itemValue(item, snake, camel, fallback = '') { return item[snake] ?? item[camel] ?? fallback; }
-  function compactMoney(value) { return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(Number(value || 0)); }
+  function compactMoney(value) { return window.TamasyaCurrencyDisplay.formatNumber(Number(value || 0)); }
   function receiptDocument(sale, items, type, copyLabel, copyIndex = 1, copyTotal = 1) {
     const dateText = new Date(sale.createdAt).toLocaleString('id-ID');
     const roomHeader = sale.roomNumber ? `<div class="room-box"><strong>KAMAR ${esc(sale.roomNumber)}</strong><span>${esc(sale.guestName || 'Tamu')}</span><small>Booking: ${esc(sale.bookingId || '—')}</small></div>` : '';

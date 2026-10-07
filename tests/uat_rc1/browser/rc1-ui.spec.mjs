@@ -490,7 +490,7 @@ test('Fresh service worker precaches the exact React module for offline import',
     // Memo does not import the PMS React bundle, so the vendor cannot be warmed
     // accidentally before this check of the newly installed precache.
     await page.goto(BASE+'/internal-memo.html');
-    const vendor='assets/chunks/vendor-react.js?v=20261007-hybrid-identity-r9';
+    const vendor='assets/chunks/vendor-react.js?v=20261007-growth-ui-r10';
     const cached=await page.evaluate(async vendor=>{
       await navigator.serviceWorker.register('./sw.js');await navigator.serviceWorker.ready;
       const cacheKeys=await caches.keys();
@@ -574,7 +574,7 @@ test('Layout: exact large amounts stay inside cards and audit shift stays above 
     await page.setViewportSize({width,height:768});
     await page.locator('#tab-dashboard').click();await expect(page.locator('.tamasya-dashboard-summary')).toBeVisible();await expectMetricContentContained(page);await expectNoPageHorizontalOverflow(page);
     await page.locator('#tab-finance').click();await expect(page.locator('.tamasya-finance-summary')).toBeVisible();
-    await expect(page.locator('.tamasya-finance-summary .tamasya-metric-value').nth(1)).toHaveText('Rp 97.770.600,3');
+    await expect(page.locator('.tamasya-finance-summary .tamasya-metric-value').nth(1)).toHaveText('Rp 97.770.600,30');
     await expectMetricContentContained(page);await expectNoPageHorizontalOverflow(page);
     await page.locator('#tab-report').click();
     const dates=page.locator('#financial-report-view input[type="date"]');await dates.nth(0).fill('2026-01-01');await dates.nth(1).fill('2026-01-31');
@@ -587,4 +587,48 @@ test('Layout: exact large amounts stay inside cards and audit shift stays above 
     evidence.push({width,height:768,exactAmount:true,cardContainment:true,auditHeadingReachable:true,auditFooterReachable:true});
   }
   writeEvidence('layout-card-audit-shift',info,{pass:true,evidence});
+});
+
+test('Activated Growth stays in native Dashboard and reservation views with exact Rupiah cents',async({page},info)=>{
+ const errors=[],quotes=[],writes=[];page.on('pageerror',error=>errors.push(error.message));
+ page.on('request',request=>{if(request.url().includes('action=growth-suite')&&request.method()!=='GET')writes.push(request.url());});
+ await page.route('**/api.php?**',async route=>{
+   const request=route.request(),url=new URL(request.url()),action=url.searchParams.get('action'),command=url.searchParams.get('command');
+   if(action==='hotel-data'){
+     const response=await route.fetch(),body=await response.json();
+     return route.fulfill({response,json:{...body,rooms:[{id:'growth_ui_room',number:'UI10',type:'Standard',floor:'1',price:400000,status:'available'}],bookings:[]}});
+   }
+   if(action==='growth-suite'&&request.method()==='GET'){
+     let data;
+     if(command==='kpis')data={occupancyPct:50,adr:4640000.3,revpar:2320000.3,soldRoomNights:2};
+     else if(command==='bootstrap')data={ratePlans:[{id:'ui_standard',name:'UI Standard',room_type:'Standard',active:1},{id:'wrong_type',room_type:'Deluxe',active:1}]};
+     else if(command==='rate-suggestion'){quotes.push(Object.fromEntries(url.searchParams));data={rate:999999999.3,stopSell:false};}
+     else return route.continue();
+     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({success:true,data})});
+   }
+   return route.continue();
+ });
+ await page.goto('/index.html');await expect(page.locator('#tab-dashboard')).toBeVisible();
+ const kpi=page.locator('#root #tamasya-growth-kpi-mini');await expect(kpi).toBeVisible();await expect(kpi).toContainText('Rp 4.640.000,30');
+ expect(await kpi.evaluate(el=>getComputedStyle(el).position)).toBe('relative');
+ const textIssues=await kpi.locator('.tamasya-growth-metric strong').evaluateAll(values=>values.filter(value=>{const card=value.closest('.tamasya-growth-metric').getBoundingClientRect(),range=document.createRange();range.selectNodeContents(value);return Array.from(range.getClientRects()).some(r=>r.left<card.left||r.right>card.right||r.bottom>card.bottom);}).map(el=>el.textContent));
+ expect(textIssues).toEqual([]);await expectNoPageHorizontalOverflow(page);
+ for(const id of ['tab-finance','tab-report']){
+   await page.locator('#'+id).click();await expect(page.locator('#tamasya-growth-kpi-mini')).toHaveCount(0);await expect(page.locator('#tamasya-growth-suggest-box')).toHaveCount(0);
+ }
+ const reportDates=page.locator('#financial-report-view input[type="date"]');await expect(reportDates).toHaveCount(2);
+ await reportDates.nth(0).fill('2026-01-01');await reportDates.nth(1).fill('2026-01-31');await expect(page.locator('#tamasya-growth-suggest-box')).toHaveCount(0);
+ const opener=page.locator('#domain-frontoffice');await opener.scrollIntoViewIfNeeded();await opener.click();await page.locator('[role="menu"] [data-route="rooms"]').click();
+ await expect(page.locator('#room-card-UI10')).toBeVisible();await expect(page.locator('#tamasya-growth-suggest-box')).toHaveCount(0);
+ await page.locator('#room-card-UI10').click();await page.getByRole('button',{name:'Reservasi & Check-In Tamu',exact:true}).click();
+ const form=page.locator('[data-tamasya-reservation-form="create"]');await expect(form).toBeVisible();
+ await form.getByLabel('Tanggal check-in reservasi',{exact:true}).fill('2026-01-28');await form.getByLabel('Tanggal check-out reservasi',{exact:true}).fill('2026-01-31');
+ await form.getByLabel('Sumber booking reservasi',{exact:true}).selectOption('Traveloka');
+ const price=form.getByLabel('Harga reservasi manual',{exact:true});await price.fill('450000');
+ const suggestion=form.locator('#tamasya-growth-suggest-box');await expect(suggestion).toContainText('Rp 999.999.999,30');await expect(suggestion).toContainText('3 malam · Traveloka');
+ await expect(price).toHaveValue('450000');
+ await expect.poll(()=>quotes.at(-1)?.bookingSource).toBe('Traveloka');expect(quotes.at(-1)).toMatchObject({planId:'ui_standard',roomType:'Standard',stayDate:'2026-01-28',lengthOfStay:'3'});
+ await form.getByLabel('Tanggal check-out reservasi',{exact:true}).fill('2026-02-01');await expect.poll(()=>quotes.at(-1)?.lengthOfStay).toBe('4');await expect(price).toHaveValue('450000');
+ await expectNoPageHorizontalOverflow(page);expect(errors).toEqual([]);expect(writes).toEqual([]);
+ writeEvidence('growth-native-widgets',info,{pass:true,currency:'Rp 4.640.000,30',kpiNormalFlow:true,reportsClean:true,quote:quotes.at(-1),priceUnchanged:true,writes:0});
 });

@@ -63,6 +63,7 @@ jobs:
           php tests/owner-readonly-regression.php
           node tests/owner-readonly-regression.mjs
           node tests/ui-financial-logic-regression.mjs
+          node tests/growth-ui-currency-regression.mjs
           php tests/finance-cash-tax-regression.php
           node tests/finance-cash-tax-regression.mjs
           php tests/telegram-charge-payment-regression.php

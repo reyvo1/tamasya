@@ -19,7 +19,7 @@ test('Reopening next month recomputes the default period',()=>{
   assert.deepEqual(policy.monthRange(new Date('2026-10-31T16:01:00Z'),'Asia/Makassar'),{from:'2026-11-01',to:'2026-11-01'});
 });
 test('All affected report addons use the shared property date policy',()=>{
-  for(const name of ['canonical-report-center','pos-report-archive-addon','growth-pms-link-addon']){
+  for(const name of ['canonical-report-center','pos-report-archive-addon','chunks/growth-widgets']){
     const src=read('assets/'+name+'.js');assert.ok(src.includes('TamasyaPosBusinessDatePolicy'),name);
     assert.ok(!src.includes('toISOString().slice(0, 10)')&&!src.includes('toISOString().slice(0,10)'),name);
   }
