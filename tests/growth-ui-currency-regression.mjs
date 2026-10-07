@@ -17,8 +17,13 @@ let response={ok:true,body:{success:true,data:{rate:250000.3}}},calls=[],effects
 const f={useState:init=>[typeof init==='function'?init():init,state=>states.push(state)],useEffect:effect=>effects.push(effect)};
 const context={window,Intl,Number,URL,Date,AbortController,document:{baseURI:'https://hotel.example/app/index.html'},sessionStorage:{getItem:key=>storage.get(key)},f,t:{jsx:(type,props)=>({type,props}),jsxs:(type,props)=>({type,props})},setTimeout:fn=>{scheduled.push(fn);return fn;},clearTimeout:fn=>{scheduled=scheduled.filter(x=>x!==fn);},fetch:async(url,options)=>{calls.push({url,options});return {ok:response.ok,json:async()=>response.body};}};
 let source=read('assets/chunks/growth-widgets.js').replace(/import\s*\{f,t\}\s*from\s*['"][^'"]+['"];?/,'').replace(/export\s+/g,'');
-vm.runInNewContext(source+';this.api={tamasyaGrowthPlansForRoom,tamasyaGrowthStayNights,tamasyaGrowthBookingUrl,tamasyaGrowthRead,useGrowthRead,TamasyaGrowthKpiPanel,TamasyaGrowthRateSuggestion,TamasyaGrowthBookingLinks};',context);
+vm.runInNewContext(source+';this.api={money,tamasyaGrowthPlansForRoom,tamasyaGrowthStayNights,tamasyaGrowthBookingUrl,tamasyaGrowthRead,useGrowthRead,TamasyaGrowthKpiPanel,TamasyaGrowthRateSuggestion,TamasyaGrowthBookingLinks};',context);
 const api=context.api;
+await check('Rate quote uses its plan currency and explicitly identifies the nightly check-in tariff',()=>{
+ assert.equal(api.money(250000.3,'IDR'),'Rp 250.000,30');
+ const usd=api.money(250000.3,'USD');assert.ok(usd.includes('US$'));assert.ok(usd.includes('250.000,30'));assert.ok(!usd.includes('Rp'));
+ assert.ok(source.includes('Tarif paket per malam untuk tanggal check-in.'));assert.ok(source.includes("money(rate.rate,rate.plan?.currency||'IDR')"));
+});
 await check('Dashboard KPI refreshes each minute and on focus, with timers cleaned on exit',()=>{
  let tick,listener,cleared=false;window.TamasyaPosBusinessDatePolicy={dateAt:()=> '2026-01-28'};
  window.addEventListener=(event,fn)=>{assert.equal(event,'focus');listener=fn;};

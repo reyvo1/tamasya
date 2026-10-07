@@ -19,3 +19,5 @@ Kartu memakai warna Dashboard, pembungkusan angka, kolom responsif, dan styleshe
 Status UAT commit terbaru dicatat pada artefak rilis sesudah Actions selesai; catatan ini tidak menyatakan aplikasi bebas semua bug.
 
 UAT R10 awal: 46/48 pemeriksaan browser lulus di masing-masing PHP 8.4 dan 8.5. Dua kegagalan skenario baru disebabkan tes mencari KPI Dashboard sebelum membuka Dashboard, padahal tab awal aplikasi adalah Kamar. Tes diperbaiki dengan navigasi Dashboard eksplisit; pemeriksaan visibilitas/nominal/geometri tetap utuh. URL cache POS dan multi properti juga disamakan dengan build R10, termasuk precache offline.
+
+Saran tarif menyebut satuan per malam pada tanggal check-in dan memakai mata uang paket yang dikembalikan API, sehingga tidak tertukar dengan total tagihan seluruh masa menginap. KPI memperbarui data setiap menit/saat fokus dan membersihkan timer saat keluar Dashboard.
