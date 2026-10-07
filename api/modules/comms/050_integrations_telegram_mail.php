@@ -942,7 +942,7 @@ function tamasyaTelegramChargeHandle(PDO $pdo,array $actor,string $callbackData)
     $text="✅ *BIAYA TAMBAHAN DAN PEMBAYARAN TERSIMPAN*\n\nKamar: *".tamasyaTelegramPlainText($payload['roomNumber'])."*\nBiaya diterima: *".tamasyaTelegramChargeMoney((float)$result['amount'])."*\nMetode: *{$method}*";
     if($payload['action']==='extension')$text.="\nCheck-out baru: *".tamasyaTelegramPlainText($result['newCheckOut'])."*";
     $text.="\n\nLunas untuk tambahan ini. Sisa seluruh reservasi mengikuti ledger booking.";
-    return ['text'=>$text,'markup'=>['inline_keyboard'=>[[['text'=>'⬅️ Kamar & Tamu','callback_data'=>'guest_ops_menu']]]], 'broadcast'=>[$text,true]];
+    return ['text'=>$text,'markup'=>['inline_keyboard'=>[[['text'=>'⬅️ Kamar & Tamu','callback_data'=>'guest_ops_menu']]]], 'broadcast'=>[$text,true,'committed_booking']];
 }
 
 /** Indonesian money input: never turn a minus, decimal point or text into different digits. */
@@ -1000,5 +1000,6 @@ function tamasyaTelegramExtensionSubmit(PDO $pdo,array $actor,array $ctx,string 
     $result=applyCanonicalTelegramBookingChargeWorkflow($pdo,$actor,$payload,telegramScopedOperationId($operationId,'extension-quote',$payload));
     $pdo->prepare("UPDATE staff SET telegram_state=NULL,telegram_context=NULL WHERE id=? AND telegram_context=?")
         ->execute([$actor['id'],$actor['telegram_context']]);
-    return ['text'=>"✅ *PERPANJANGAN BERHASIL · BELUM BAYAR*\n\nKamar: ".$ctx['roomNumber']."\nCheckout baru: ".$result['newCheckOut']."\nTambahan tagihan termasuk PBJT: Rp ".tamasyaTelegramFormatAmount($ctx['amount'])."\nPembayaran dilakukan nanti melalui Panjar atau Checkout.",'markup'=>['inline_keyboard'=>[[['text'=>'🏠 Menu Utama','callback_data'=>'main_menu']]]]];
+    $text="✅ *PERPANJANGAN BERHASIL · BELUM BAYAR*\n\nKamar: ".$ctx['roomNumber']."\nCheckout baru: ".$result['newCheckOut']."\nTambahan tagihan termasuk PBJT: Rp ".tamasyaTelegramFormatAmount($ctx['amount'])."\nPembayaran dilakukan nanti melalui Panjar atau Checkout.";
+    return ['text'=>$text,'markup'=>['inline_keyboard'=>[[['text'=>'🏠 Menu Utama','callback_data'=>'main_menu']]]],'broadcast'=>[$text,false,'committed_booking']];
 }

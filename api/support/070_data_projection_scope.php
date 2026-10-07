@@ -293,6 +293,10 @@ function getFullHotelData($pdo, $scopeUser = null) {
             foreach (['totalAmount','roomCharge','extraCharge','discountAmount','amountPaid','balanceDue','refundAmount','securityDepositRequiredAmount','securityDepositReceived','securityDepositRefunded','securityDepositForfeited','securityDepositHeld','financialClosureBalance','downPaymentAmount','splitCashAmount','splitTransferAmount','lateCheckoutFee'] as $moneyField) {
                 $b[$moneyField] = (float)($b[$moneyField] ?? 0);
             }
+            if(strtolower((string)($b['status']??''))!=='cancelled'&&array_filter(tamasyaDecodeBookingExtras($b['extras']??null),'tamasyaBookingExtraIsRoomCharge')){
+                $b['extraCharge']=min(max(0,$b['totalAmount']-$b['discountAmount']),tamasyaBookingServiceExtrasTotal($b['extras']??null));
+                $b['roomCharge']=max(0,$b['totalAmount']-$b['discountAmount']-$b['extraCharge']);
+            }
             $b['isOpenEnded'] = !empty($b['isOpenEnded']);
             $b['securityDepositRequired'] = !empty($b['securityDepositRequired']);
             if (isset($b['vatRate']) && $b['vatRate'] !== null && $b['vatRate'] !== "") {

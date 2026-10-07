@@ -132,7 +132,7 @@ function tamasyaGrowthOperationalKpis(PDO $pdo,string $fromDate,string $toDate):
 
     // Range predicate keeps idx_bookings_dates usable. Row-level overlap is then
     // calculated in PHP to allocate roomCharge proportionally across stay nights.
-    $stmt=$pdo->prepare("SELECT id,roomType,checkIn,checkOut,status,roomCharge,totalAmount,bookingSource,createdAt,isOpenEnded,stayMode,actualCheckOutAt,checkoutDueAt FROM bookings WHERE status IN ('reserved','active','completed') AND checkIn<=? AND (checkOut>=? OR (isOpenEnded=1 AND status='active'))");
+    $stmt=$pdo->prepare("SELECT id,roomType,checkIn,checkOut,status,roomCharge,totalAmount,extras,discountAmount,bookingSource,createdAt,isOpenEnded,stayMode,actualCheckOutAt,checkoutDueAt FROM bookings WHERE status IN ('reserved','active','completed') AND checkIn<=? AND (checkOut>=? OR (isOpenEnded=1 AND status='active'))");
     $stmt->execute([$toDate,$fromDate]);$bookings=$stmt->fetchAll(PDO::FETCH_ASSOC)?:[];
     $sold=0;$roomRevenue=0.0;$losTotal=0;$leadDaysTotal=0;$leadCount=0;$direct=0;$ota=0;
     $periodStart=$from->setTime(0,0);$periodEnd=$to->modify('+1 day')->setTime(0,0);
@@ -153,7 +153,7 @@ function tamasyaGrowthOperationalKpis(PDO $pdo,string $fromDate,string $toDate):
         $stayNights=max(1,(int)$ci->diff($co)->days);$overlapStart=$ci>$periodStart?$ci:$periodStart;$overlapEnd=$co<$periodEnd?$co:$periodEnd;
         $overlap=max(0,(int)$overlapStart->diff($overlapEnd)->days);if($overlap<=0)continue;
         $sold+=$overlap;$losTotal+=$stayNights;
-        $roomCharge=max(0.0,(float)($b['roomCharge']??$b['totalAmount']??0));$allocated=$roomCharge*($overlap/$stayNights);$roomRevenue+=$allocated;
+        $roomCharge=array_filter(tamasyaDecodeBookingExtras($b['extras']??null),'tamasyaBookingExtraIsRoomCharge')?max(0.0,(float)($b['totalAmount']??0)-(float)($b['discountAmount']??0)-tamasyaBookingServiceExtrasTotal($b['extras']??null)):max(0.0,(float)($b['roomCharge']??$b['totalAmount']??0));$allocated=$roomCharge*($overlap/$stayNights);$roomRevenue+=$allocated;
         $type=trim((string)($b['roomType']??'Tidak diketahui'))?:'Tidak diketahui';if(!isset($roomTypes[$type]))$roomTypes[$type]=['roomCount'=>0,'availableRoomNights'=>0,'roomNights'=>0,'roomRevenue'=>0.0,'occupancyPct'=>0.0,'adr'=>0.0,'revpar'=>0.0];$roomTypes[$type]['roomNights']+=$overlap;$roomTypes[$type]['roomRevenue']+=$allocated;
         if(isOtaBookingSource((string)($b['bookingSource']??'')))$ota++;else $direct++;
         if(!empty($b['createdAt'])){$created=strtotime((string)$b['createdAt']);$arrival=strtotime($ci->format('Y-m-d'));if($created!==false&&$arrival!==false&&$arrival>=$created){$leadDaysTotal+=(int)floor(($arrival-$created)/86400);$leadCount++;}}

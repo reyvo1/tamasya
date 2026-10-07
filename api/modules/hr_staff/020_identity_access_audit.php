@@ -632,6 +632,15 @@ function tamasyaBookingExtrasTotal($value): float {
     return round($total, 2);
 }
 
+/** Extension components are room revenue even though stored in booking.extras. */
+function tamasyaBookingExtraIsRoomCharge(array $extra): bool {
+    $kind=strtolower(trim((string)($extra['allocationType']??$extra['revenueType']??'')));
+    return in_array($kind,['room','extension'],true)||strtolower(trim((string)($extra['taxKind']??'')))==='extension';
+}
+function tamasyaBookingServiceExtrasTotal($value): float {
+    return tamasyaBookingExtrasTotal(array_values(array_filter(tamasyaDecodeBookingExtras($value),static fn($extra)=>!tamasyaBookingExtraIsRoomCharge($extra))));
+}
+
 /** Hubungkan item extra yang dibayar dengan transaksi kas tanpa mengubah transaksi historis lain. */
 function tamasyaAttachBookingExtraPayment(PDO $pdo, string $bookingId, ?string $extraId, string $transactionId, ?string $operationId = null): void {
     $extraId = trim((string)$extraId);
@@ -691,7 +700,7 @@ function recalculateBookingFinancials($pdo, $bookingId = null, bool $strict = fa
             $allocatedPaid->execute([$b['id']]);
             $refundStmt->execute([$b['id']]);
             $total=max(0,(float)$b['totalAmount']-(float)($b['discountAmount']??0));
-            $extras=max(0,tamasyaBookingExtrasTotal($b['extras']??null));
+            $extras=max(0,tamasyaBookingServiceExtrasTotal($b['extras']??null));
             $received=max(0,(float)$linkedRemainderPaid->fetchColumn()+(float)$allocatedPaid->fetchColumn());
             $refund=max(0,(float)$refundStmt->fetchColumn());
             $net=max(0,$received-$refund);

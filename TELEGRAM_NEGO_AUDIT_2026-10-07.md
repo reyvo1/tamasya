@@ -25,3 +25,9 @@ Koreksi tambahan: jalur alokasi receipt durasi terbuka sebelumnya merujuk katego
 Unit perhitungan menguji batas uang diterima, komponen lunas, layanan, PBJT campuran, harga nol/NaN/Inf, pembagian sen dan nominal kecil. Skenario GitHub UAT diperluas tanpa menghapus cek pembayaran/shift sebelumnya: perpanjangan nego belum bayar dan QRIS, web preview/simpan/quote usang, checkout nego Telegram, tombol berulang, pembatalan, receipt lama tidak berubah, satu receipt pelunasan dan jurnal seimbang. Pengujian aplikasi/database penuh dilakukan di GitHub CI, bukan pada database hotel lokal/hosting.
 
 Status UAT final dicatat bersama paket rilis setelah CI commit final selesai. Paket tidak otomatis dipasang ke hosting.
+
+## Temuan pada UAT pertama dan tindak lanjut
+
+Run `37638255743` menemukan pemanggilan `rc410TableExists()` (helper migrasi yang tidak dimuat pada runtime normal) di guard folio Enterprise. Ini kesalahan kode R12, bukan kesalahan input/UAT. Guard diganti dengan `tamasyaSchemaTableExists()` dari kontrak schema runtime.
+
+Audit lanjutan menemukan perpanjangan Telegram di `booking.extras` dihitung sebagai `extraCharge`. Klasifikasi kini memakai metadata komponen room/extension; hanya layanan sungguhan yang menjadi `extraCharge`. Proyeksi web dan KPI Growth membaca komponen sumber sehingga angka lama yang tersimpan tidak membuat perpanjangan hilang dari pendapatan kamar. Snapshot pembayaran tidak diubah. Broadcast perpanjangan belum bayar dipertahankan; kegagalan broadcast setelah commit tidak dilaporkan sebagai kegagalan menyimpan biaya.

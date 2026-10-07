@@ -1129,7 +1129,7 @@ function tamasyaBookingReceiptComponents(PDO $pdo, array $booking, ?string $effe
             $category=(string)$defaultExtraCategory['name'];$categoryId=(string)$defaultExtraCategory['id'];$categorySystemKey='extra_service';
             $subcategory=null;$subcategoryId=null;$subcategorySystemKey=null;
         }
-        $allocationType=strtolower(trim((string)($extra['allocationType']??$extra['revenueType']??'extra')));
+        $allocationType=tamasyaBookingExtraIsRoomCharge($extra)?'room':'extra';
         if(!in_array($allocationType,['room','extra'],true))$allocationType='extra';
         $components[]=[
             'key'=>'extra:'.(trim((string)($extra['id']??''))?:('idx'.$idx)),
@@ -2270,9 +2270,10 @@ function tamasyaNegotiatedPricePlan(array $booking,array $components,array $paid
 
 function tamasyaBookingNegotiationQuote(PDO $pdo,array $booking): array {
     if(($booking['status']??'')!=='active'||!empty($booking['isOpenEnded']))throw new RuntimeException('Harga nego checkout hanya untuk booking aktif dengan durasi tetap. Durasi terbuka memakai total aktual.');
+    if(strtolower((string)($booking['financialProjectionMode']??'live_ledger'))==='legacy_snapshot'||abs((float)($booking['discountAmount']??0))>0.001)throw new RuntimeException('Booking memakai snapshot/diskon lama. Rekonsiliasi melalui koreksi audit sebelum menetapkan harga nego agar ledger tetap sesuai.');
     $total=round((float)$booking['totalAmount'],2);
     if(tamasyaValidBookingTaxSnapshot($booking,$total)===null)throw new RuntimeException('Snapshot PBJT booking belum valid. Koreksi audit dahulu sebelum negosiasi.');
-    if(rc410TableExists($pdo,'growth_folio_charge_allocations')){
+    if(tamasyaSchemaTableExists($pdo,'growth_folio_charge_allocations')){
         $folio=$pdo->prepare('SELECT id FROM growth_folio_charge_allocations WHERE booking_id=? LIMIT 1');$folio->execute([(string)$booking['id']]);
         if($folio->fetchColumn())throw new RuntimeException('Tagihan sudah dialokasikan ke folio Enterprise. Lepaskan/perbaiki routing folio terlebih dahulu sebelum menetapkan harga nego agar invoice tidak berbeda.');
     }

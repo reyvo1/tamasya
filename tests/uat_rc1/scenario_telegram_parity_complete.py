@@ -214,6 +214,8 @@ if len(rooms)>=2 and booking_id:
     after=db('SELECT * FROM bookings WHERE id=?',[booking_id])[0]
     check('Telegram price change is visible on web total and outstanding',abs(float(after['totalAmount'])-(final-10000))<0.01 and float(after['balanceDue'])>0,after)
     check('Price changes do not modify old receipts',db('SELECT id,amount,baseAmount,taxAmount,bankAccountId FROM transactions WHERE bookingId=? ORDER BY id',[booking_id])==receipts_before)
+    service_gross=sum(float(x.get('total') or 0) for x in json.loads(after.get('extras') or '[]') if x.get('allocationType')!='room' and x.get('taxKind')!='extension')
+    check('Room summary includes extensions while service total stays separate',abs(float(after['extraCharge'])-service_gross)<0.01 and abs(float(after['roomCharge'])-(float(after['totalAmount'])-service_gross))<0.01,{'roomCharge':after['roomCharge'],'extraCharge':after['extraCharge']})
     check('Price changes preserve paid extension and service snapshots',[x for x in json.loads(after.get('extras') or '[]') if x.get('paymentStatus')=='paid']==paid_extras_before)
     sim_cb('nego_checkout_save_replay',save)
     check('Repeated negotiation confirmation cannot apply a second discount',db('SELECT totalAmount FROM bookings WHERE id=?',[booking_id])[0]['totalAmount']==after['totalAmount'])

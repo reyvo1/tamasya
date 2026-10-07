@@ -2416,6 +2416,7 @@ Pilih kamar yang menerima transaksi keuangan.
                     try{
                         $parts=explode(':',$callbackData);$ctx=tamasyaTelegramExtensionContext($loggedInStaff,$parts[1]??'');
                         $result=tamasyaTelegramExtensionSubmit($pdo,$loggedInStaff,$ctx,$parts[2]??'',$telegramCallbackOperationId);$replyText=$result['text'];$replyMarkup=$result['markup'];
+                        if(isset($result['broadcast']))$postCallbackBroadcasts[]=$result['broadcast'];
                     }catch(TelegramDuplicateOperationException $e){$replyText='ℹ️ Perpanjangan ini sudah diproses. Tidak ada tagihan/pembayaran ganda.';}
                     catch(Throwable $e){$replyText=clientExceptionMessage('Perpanjangan ditolak',$e);}
                 } elseif (strpos($callbackData, "r_extend_confirm:") === 0) {
@@ -3812,8 +3813,8 @@ Shift telah ditutup, sesi server berstatus *CLOSED*, dan rekonsiliasi kas tersim
                     foreach ($postCallbackBroadcasts as $queuedBroadcast) {
                         try{broadcastTelegramNotification($pdo,(string)($queuedBroadcast[0]??''),!empty($queuedBroadcast[1]));}
                         catch(Throwable $deliveryError){
-                            if(($queuedBroadcast[2]??'')!=='committed_shift')throw $deliveryError;
-                            error_log(clientExceptionMessage('[Telegram] Shift sudah tersimpan; broadcast gagal',$deliveryError));
+                            if(!in_array($queuedBroadcast[2]??'',['committed_shift','committed_booking'],true))throw $deliveryError;
+                            error_log(clientExceptionMessage('[Telegram] Operasi sudah tersimpan; broadcast gagal',$deliveryError));
                         }
                     }
                 }
@@ -5398,6 +5399,7 @@ Shift ditutup di database server dengan catatan Anda. Selisih: *{$result['varian
                         $value=strtolower(trim((string)$command));
                         $status=in_array($value,['lunas','paid','1','ya','sudah'],true)?'paid':(in_array($value,['belum','unpaid','2','tidak','belum lunas','belum bayar'],true)?'unpaid':'');
                         $result=tamasyaTelegramExtensionSubmit($pdo,$loggedInStaff,$ctx,$status,$telegramUpdateOperationId);$replyText=$result['text'];$replyMarkup=$result['markup'];
+                        if(isset($result['broadcast']))try{broadcastTelegramNotification($pdo,$result['broadcast'][0],false);}catch(Throwable $deliveryError){error_log(clientExceptionMessage('[Telegram] Perpanjangan tersimpan; broadcast gagal',$deliveryError));}
                     }catch(Throwable $e){$replyText=clientExceptionMessage('Perpanjangan belum dapat diproses',$e);}
                     $stateProcessed=true;
                 } elseif ($currentState === 'waiting_for_layanan_type') {
