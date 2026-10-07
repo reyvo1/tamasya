@@ -24,10 +24,12 @@ Perpanjangan kamar/lunas/layanan tambahan Telegram sudah memakai pemilihan tunai
 
 ## Validasi
 
-- Ditambahkan `tests/telegram-shift-regression.php`: 28 pemeriksaan nilai kas/digital, split, akun teknis, backfill, selisih kurang/lebih, keterangan wajib, override, role, presisi, sesi malam, sesi tidak cocok dan kegagalan database. Tes unit memakai data dalam memori; tidak menjalankan aplikasi hotel atau mengimpor backup produksi.
+- Ditambahkan `tests/telegram-shift-regression.php`: 30 pemeriksaan nilai kas/digital, split, akun teknis, backfill, selisih kurang/lebih, keterangan wajib, override, role, presisi, sesi malam, sesi tidak cocok dan kegagalan database. Tes unit memakai data dalam memori; tidak menjalankan aplikasi hotel atau mengimpor backup produksi.
 - Skenario GitHub Telegram ditambah: buka shift dari akun resepsionis; tutup dengan kurang/lebih dan keterangan; tombol lama tanpa catatan ditolak; review tampil di web; Admin merevisi kas fisik; revisi lama ditolak; persetujuan tidak menghapus selisih. Seluruh skenario lama tetap dipertahankan.
 - Seluruh 34 suite source/unit lokal lulus (PHP 8.5.4, Node 22.23.3), termasuk sintaks dan checksum. Full UAT GitHub masih menunggu hasil commit R11. R10 ZIP lama tidak otomatis memuat R11.
 
 ## Koreksi dari UAT GitHub pertama R11
 
 Run `37572779047` menemukan satu assertion HTTP revisi lama: data sudah aman karena konflik ditolak, tetapi handler umum Pusat Operasional mengembalikan 400 dan menimpa DomainException 409. Jalur revisi kini menerapkan pemetaan status resmi (409 untuk konflik, 400 untuk input tidak valid, 500 untuk kegagalan internal). Assertion konflik tetap 409, tidak dilonggarkan. Preview KURANG memakai nilai absolut; formatter Telegram menampilkan pecahan dua digit. Kas awal web menolak negatif/non-numerik/nonfinite, tidak mengubahnya diam-diam menjadi 0. UAT diulang pada commit koreksi.
+
+Keterangan Admin/Manager yang memakai kolom alasan untuk selisih dalam toleransi tetap disimpan sebagai catatan laporan, meskipun tidak dihitung sebagai override. Kasus ini ditambahkan ke tes unit.

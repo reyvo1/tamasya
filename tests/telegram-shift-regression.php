@@ -48,6 +48,10 @@ foreach(['admin','manager'] as $role){
  $p=tamasyaShiftVariancePolicy(['role'=>$role],5000,0,'','Hitung ulang telah diperiksa');
  shiftCheck(!$p['needsReview']&&$p['overrideReason']==='Hitung ulang telah diperiksa','Manager records override without fabricating a cash adjustment: '.$role);
 }
+foreach(['admin','manager'] as $role){
+ $p=tamasyaShiftVariancePolicy(['role'=>$role],-1000,5000,'','Hitung uang laci telah diperiksa');
+ shiftCheck(!$p['needsReview']&&$p['overrideReason']===null&&$p['explanation']==='Hitung uang laci telah diperiksa','Manager explanation inside tolerance is retained as report notes: '.$role);
+}
 foreach(['owner','cleaning_service','keamanan'] as $role)shiftReject(fn()=>tamasyaShiftVariancePolicy(['role'=>$role],0,0,''),'Unauthorized role cannot close drawer: '.$role);
 shiftReject(fn()=>tamasyaShiftVariancePolicy(['role'=>'admin'],NAN,0,'Audit kas','Audit kas'),'Nonfinite difference is rejected');
 final class ShiftReadFixture extends PDO {

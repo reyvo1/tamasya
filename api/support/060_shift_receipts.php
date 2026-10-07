@@ -388,7 +388,7 @@ function tamasyaShiftVariancePolicy(array $staff, float $variance, float $tolera
         throw new InvalidArgumentException('Uang kurang/lebih wajib disertai keterangan minimal 5 karakter.');
     if(abs($variance)>$tolerance && $manager && tamasyaStringLength($overrideReason)<5)
         throw new InvalidArgumentException('Admin/Manager wajib mengisi alasan override selisih minimal 5 karakter.');
-    return ['needsReview'=>abs($variance)>$tolerance&&!$manager,'overrideReason'=>abs($variance)>$tolerance&&$manager?$overrideReason:null];
+    return ['needsReview'=>abs($variance)>$tolerance&&!$manager,'overrideReason'=>abs($variance)>$tolerance&&$manager?$overrideReason:null,'explanation'=>$notes!==''?$notes:($manager&&$variance!=0.0?$overrideReason:'')];
 }
 
 function tamasyaCreateShiftVarianceReview(PDO $pdo, array $staff, array $shift, float $actual, float $expected, string $reason, string $source): string {
@@ -463,7 +463,7 @@ function finalizeTelegramShiftReport($pdo, string $operationId, array $staff, ar
         $tolerance=max(0.0,(float)($settings['cash_variance_tolerance']??0));
         $policy=tamasyaShiftVariancePolicy($staff,$variance,$tolerance,$notes,$overrideReason);
         $overrideReason=$policy['overrideReason'];
-        if($notes==='')$notes=$overrideReason?:'Serah terima tanpa catatan tambahan.';
+        if($notes==='')$notes=$policy['explanation']?:'Serah terima tanpa catatan tambahan.';
         $reviewId=$policy['needsReview']?tamasyaCreateShiftVarianceReview($pdo,$staff,$session,$actualCash,$expectedCash,$notes,'telegram'):null;
         $staffName = (string)($staff['name'] ?? 'Staf');
         $companionName = trim((string)($session['companion_staff_name'] ?? ''));

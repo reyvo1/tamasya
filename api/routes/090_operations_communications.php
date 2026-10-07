@@ -307,7 +307,7 @@ switch ($action) {
                 $closeNotes=trim((string)($input['notes']??''));
                 $policy=tamasyaShiftVariancePolicy($loggedInStaff,$variance,(float)($operationalSettings['cash_variance_tolerance']??0),$closeNotes,trim((string)($input['overrideReason']??'')));
                 $overrideReason=$policy['overrideReason'];
-                if($closeNotes==='')$closeNotes=$overrideReason?:'Serah terima tanpa catatan tambahan.';
+                if($closeNotes==='')$closeNotes=$policy['explanation']?:'Serah terima tanpa catatan tambahan.';
                 $reviewId=$policy['needsReview']?tamasyaCreateShiftVarianceReview($pdo,$loggedInStaff,$shift,$actual,$expected,$closeNotes,'web'):null;
                 $closeStmt=$pdo->prepare("UPDATE shift_sessions SET cash_income=?,cash_expense=?,expected_cash=?,actual_cash=?,variance=?,close_override_reason=?,status='closed',notes=CONCAT(COALESCE(notes,''), CASE WHEN COALESCE(notes,'')='' OR ?='' THEN '' ELSE '\n' END, ?),closed_at=CURRENT_TIMESTAMP WHERE id=? AND status='open'");
                 $closeStmt->execute([$income,$expense,$expected,$actual,$variance,$overrideReason?:null,$closeNotes,$closeNotes,$id]);
