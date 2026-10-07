@@ -610,7 +610,7 @@ test('Activated Growth stays in native Dashboard and reservation views with exac
  });
  await page.goto('/index.html');await expect(page.locator('#tab-dashboard')).toBeVisible();
  const kpi=page.locator('#root #tamasya-growth-kpi-mini');await expect(kpi).toBeVisible();await expect(kpi).toContainText('Rp 4.640.000,30');
- expect(await kpi.evaluate(el=>getComputedStyle(el).position)).toBe('relative');
+ await expect.poll(()=>kpi.evaluate(el=>getComputedStyle(el).position)).toBe('relative');
  const textIssues=await kpi.locator('.tamasya-growth-metric strong').evaluateAll(values=>values.filter(value=>{const card=value.closest('.tamasya-growth-metric').getBoundingClientRect(),range=document.createRange();range.selectNodeContents(value);return Array.from(range.getClientRects()).some(r=>r.left<card.left||r.right>card.right||r.bottom>card.bottom);}).map(el=>el.textContent));
  expect(textIssues).toEqual([]);await expectNoPageHorizontalOverflow(page);
  for(const id of ['tab-finance','tab-report']){
