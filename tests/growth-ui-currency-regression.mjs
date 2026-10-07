@@ -87,6 +87,14 @@ await check('Feature and roles gate widgets while Owner has read-only links',()=
  storage.set('hotel_staff_role','owner');window.TAMASYA_RUNTIME_CONFIG.features.growthSuiteEnabled=false;assert.equal(api.TamasyaGrowthKpiPanel(),null);
  window.TAMASYA_RUNTIME_CONFIG.features.growthSuiteEnabled=true;
 });
+await check('Growth offline bootstrap cache cannot cross hotel staff role or permission boundaries',()=>{
+ const suite=read('assets/growth-suite.js'),start=suite.indexOf('  function growthCacheIdentity'),end=suite.indexOf('  async function loadBootstrap',start);
+ const map=new Map([['hotel_offline_hotel_scope','hotel-a'],['hotel_staff_id','staff-a'],['hotel_staff_role','admin'],['hotel_permissions','{"finance":true}']]);
+ const ctx={sessionStorage:{getItem:k=>map.get(k)},currentRole:()=>map.get('hotel_staff_role'),JSON,Number};vm.runInNewContext(suite.slice(start,end)+';this.cache={growthCacheIdentity,readGrowthCache};',ctx);
+ const cache={at:10,identity:ctx.cache.growthCacheIdentity(),data:{companies:[{id:'private-a'}]}};map.set('tamasya_growth_bootstrap_cache',JSON.stringify(cache));assert.ok(ctx.cache.readGrowthCache());
+ for(const [key,value] of [['hotel_offline_hotel_scope','hotel-b'],['hotel_staff_id','staff-b'],['hotel_staff_role','finance'],['hotel_permissions','{}']]){const original=map.get(key);map.set(key,value);assert.equal(ctx.cache.readGrowthCache(),null);map.set(key,original);}
+ map.set('tamasya_growth_bootstrap_cache','invalid json');assert.equal(ctx.cache.readGrowthCache(),null);map.set('tamasya_growth_bootstrap_cache',JSON.stringify({at:10,data:cache.data}));assert.equal(ctx.cache.readGrowthCache(),null);
+});
 await check('React owns explicit widget locations and old addon has no DOM or fetch side effects',()=>{
  const dash=read('assets/chunks/dashboard.js'),rooms=read('assets/chunks/rooms.js'),shim=read('assets/growth-pms-link-addon.js');
  assert.ok(dash.includes('t.jsx(TamasyaGrowthKpiPanel,{})'));assert.ok(rooms.includes('roomType:V.type,checkIn:ve,checkOut:pe,bookingSource:lm||"Direct",stayMode:Ee,openEnded:bn'));

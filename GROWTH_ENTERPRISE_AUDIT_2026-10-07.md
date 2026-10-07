@@ -12,6 +12,8 @@ Build `20261007-growth-kpi-r13`. Baseline R12 `c9c1f1149df01736013afacea6fce0f2a
 6. Dashboard menolak respons KPI tidak lengkap atau periodenya berbeda; tidak mengubah payload kosong menjadi empat angka nol. Menampilkan jumlah kamar active sekarang, penjelasan sumber booking, dan alert active lewat checkout. Angka nol yang benar tetap ditampilkan dengan keterangan. Transaksi backfill uang saja bukan data malam menginap.
 7. Dashboard refresh tiap menit, saat fokus dan setelah mutasi web berhasil. Tab KPI Growth dan laporan ringkasan/health Enterprise diperbarui saat terlihat. Refresh laporan Enterprise tidak menjalankan render ulang seluruh formulir atau mengganti pilihan yang sedang dikerjakan. Respons lama tidak menimpa hasil permintaan yang lebih baru; respons forecast/accounting tidak lengkap menjadi pesan error, bukan nominal nol.
 
+8. Cache bootstrap Growth sebelumnya memakai satu key tanpa scope hotel/staf/role/izin. Cache kini terikat identitas tersebut; cache lama atau JSON rusak ditolak. Bootstrap Enterprise yang gagal menonaktifkan tombol mutasi sampai status node/data berhasil dimuat ulang.
+
 ## Cakupan pemeriksaan
 
 Menelusuri bootstrap/feature gate/role, endpoint selection primary, periode KPI, interval sewa, revenue kamar, folio/alokasi, forecast, accounting posted, AP/health/adapter/CRM UI dan pembaruan data. Tidak mengaktifkan provider, mengirim campaign/email/Telegram, memasang ke hosting, mengimpor backup hotel, atau menjalankan simulasi aplikasi/database lokal. Perubahan tidak membutuhkan schema baru. Kedua server harus memakai kode R13 yang sama.
