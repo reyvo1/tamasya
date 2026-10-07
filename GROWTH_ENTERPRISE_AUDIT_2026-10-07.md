@@ -23,3 +23,7 @@ Definisi tetap: denominator KPI adalah seluruh kamar fisik terkonfigurasi, belum
 ## Validasi
 
 Tambahan 17 tes unit interval/revenue; pengujian UI payload kosong/period mismatch, zona waktu/deep link dan refresh tanpa mereset formulir. UAT GitHub diperluas dengan MySQL fixture checkout awal, active lewat checkout, open-ended dan klasifikasi extension/service; fixture direstore sebelum skenario bisnis berikutnya. Browser desktop/mobile membaca KPI nyata dari API, membuat booking canonical nonzero, memeriksa kesamaan Dashboard/detail pada tanggal hotel yang sama tanpa stub KPI, serta memeriksa read-only dan layout. Seluruh UAT sebelumnya tetap dipertahankan. Status akhir commit dan paket dicatat sesudah GitHub CI selesai.
+
+## Koreksi dari UAT browser
+
+Run `37648466853` meluluskan MySQL Growth/Enterprise dan 50 skenario browser lama. Dua skenario KPI baru meluluskan angka nyata Dashboard/detail dan pembukaan otomatis, lalu gagal pada cleanup fixture: setelah navigasi ke halaman Growth standalone, fetch native tidak lagi memakai wrapper auth PMS. Permintaan cancel fixture kini menyertakan token, scope sesi/hotel, device, app version dan operation ID secara eksplisit. Ini koreksi harness UAT, bukan melonggarkan assertion atau perubahan angka KPI. Seluruh UAT diulang pada commit koreksi.
