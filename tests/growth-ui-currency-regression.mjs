@@ -64,7 +64,7 @@ await check('React owns explicit widget locations and old addon has no DOM or fe
  assert.ok(rooms.includes('bookingId:C.id'));assert.ok(rooms.includes('"data-tamasya-reservation-form":"create"'));
  assert.ok(!/MutationObserver|querySelector|appendChild|position:fixed|fetch\(/.test(shim));
  assert.ok(!/querySelector|MutationObserver|innerHTML/.test(source));
- for(const p of ['index.html','pos.html','growth-suite.html','enterprise-suite.html'])assert.ok(read(p).includes('currency-display.js'));
+ for(const p of ['index.html','pos.html','growth-suite.html','enterprise-suite.html','multi-property-foundation.html'])assert.ok(read(p).includes('currency-display.js'));
  const sw=read('sw.js');for(const p of ['currency-display.js','chunks/growth-widgets.js','growth-widgets.css'])assert.ok(sw.includes(p));
 });
 console.log(`${passed} passed; 0 failed`);
