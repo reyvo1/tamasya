@@ -97,7 +97,7 @@ switch ($action) {
         // Operasional, sedangkan perintah bisnis mengikuti desktopTabs terkait.
         $operationCommandTabs = [
             'derived-state-refresh'=>['operations'],
-            'shift-open'=>['operations'], 'shift-close'=>['operations'],
+            'shift-open'=>['operations'], 'shift-close'=>['operations'], 'shift-cash-revise'=>['operations'],
             'approval-create'=>['operations'], 'approval-decide'=>['operations'],
             'approval-policy-save'=>['operations'],
             'session-revoke'=>['operations','config'], 'device-disable'=>['operations','config'],
@@ -296,31 +296,17 @@ switch ($action) {
                 // Hanya transaksi live non-exempt yang boleh diklaim. Backfill historis
                 // tetap bebas shift walaupun dicatat saat sesi kas sedang terbuka.
                 claimUnassignedLiveTransactionsForShift($pdo,$shift);
-                $stmtTotals = $pdo->prepare("SELECT
-                    COALESCE(SUM(CASE WHEN type='income' AND COALESCE(transactionKind,'manual')<>'security_deposit_forfeit' THEN CASE WHEN COALESCE(isSplitPayment,0)=1 AND COALESCE(splitCashAmount,0)>0 AND COALESCE(splitTransferAmount,0)>0 AND COALESCE(splitTransferBankAccountId,'')<>'' AND ABS(amount-(COALESCE(splitCashAmount,0)+COALESCE(splitTransferAmount,0)))<=0.01 THEN COALESCE(splitCashAmount,0) WHEN (bankAccountId IS NULL OR bankAccountId='' OR bankAccountId='cash') THEN amount ELSE 0 END ELSE 0 END),0) AS cash_income,
-                    COALESCE(SUM(CASE WHEN type='expense' THEN CASE WHEN COALESCE(isSplitPayment,0)=1 AND COALESCE(splitCashAmount,0)>0 AND COALESCE(splitTransferAmount,0)>0 AND COALESCE(splitTransferBankAccountId,'')<>'' AND ABS(amount-(COALESCE(splitCashAmount,0)+COALESCE(splitTransferAmount,0)))<=0.01 THEN COALESCE(splitCashAmount,0) WHEN (bankAccountId IS NULL OR bankAccountId='' OR bankAccountId='cash') THEN amount ELSE 0 END ELSE 0 END),0) AS cash_expense,
-                    COALESCE(SUM(CASE WHEN type='income' AND COALESCE(transactionKind,'manual') NOT IN ('internal_transfer','ota_transfer','security_deposit_forfeit') THEN
-                        CASE WHEN COALESCE(isSplitPayment,0)=1 AND COALESCE(splitCashAmount,0)>0 AND COALESCE(splitTransferAmount,0)>0 AND COALESCE(splitTransferBankAccountId,'')<>'' AND ABS(amount-(COALESCE(splitCashAmount,0)+COALESCE(splitTransferAmount,0)))<=0.01
-                            THEN COALESCE(splitTransferAmount,0)
-                            WHEN bankAccountId IS NOT NULL AND bankAccountId<>'' AND bankAccountId<>'cash' AND LOWER(bankAccountId) NOT IN ('ota_receivable','inventory_asset','guest_receivable','accounts_payable') THEN amount
-                            ELSE 0 END
-                        ELSE 0 END),0) AS digital_income,
-                    COUNT(*) AS tx_count
-                    FROM transactions WHERE shiftSessionId=?");
-                $stmtTotals->execute([$id]); $totals=$stmtTotals->fetch();
-                $income=(float)($totals['cash_income']??0); $expense=(float)($totals['cash_expense']??0);
-                $digital=(float)($totals['digital_income']??0); $txCount=(int)($totals['tx_count']??0);
-                $expected=(float)$shift['opening_cash']+$income-$expense;
+                $financials=getShiftFinancials($pdo,$loggedInStaff,(string)$shift['shift_time'],(string)$shift['shift_date'],trim((string)($shift['companion_staff_id']??''))?:'none',true,$id);
+                $income=$financials['cashInc'];$expense=$financials['cashExp'];$digital=$financials['digitalInc'];$txCount=$financials['txCount'];
+                $expected=$financials['expectedCash'];
                 if(!array_key_exists('actualCash',$input) || $input['actualCash']==='' || $input['actualCash']===null || !is_numeric($input['actualCash']))throw new InvalidArgumentException('Kas fisik aktual wajib diisi dengan angka yang valid.');
                 $actual=round((float)$input['actualCash'],2);if(!is_finite($actual)||$actual<0)throw new InvalidArgumentException('Kas fisik aktual tidak boleh negatif atau tidak valid.');
-                $variance=$actual-$expected;
-                $tolerance=max(0,(float)($operationalSettings['cash_variance_tolerance']??0));
-                $overrideReason=trim((string)($input['overrideReason']??''));
-                if(abs($variance)>$tolerance){
-                    if(!in_array($loggedInStaff['role']??'', ['admin','manager'],true))throw new RuntimeException('Selisih kas Rp '.number_format(abs($variance),0,',','.').' melebihi toleransi. Shift harus diperiksa dan disetujui Manager.');
-                    if(strlen($overrideReason)<5)throw new RuntimeException('Manager wajib mengisi alasan override selisih kas minimal 5 karakter.');
-                }
+                $variance=round($actual-$expected,2);
                 $closeNotes=trim((string)($input['notes']??''));
+                $policy=tamasyaShiftVariancePolicy($loggedInStaff,$variance,(float)($operationalSettings['cash_variance_tolerance']??0),$closeNotes,trim((string)($input['overrideReason']??'')));
+                $overrideReason=$policy['overrideReason'];
+                if($closeNotes==='')$closeNotes=$overrideReason?:'Serah terima tanpa catatan tambahan.';
+                $reviewId=$policy['needsReview']?tamasyaCreateShiftVarianceReview($pdo,$loggedInStaff,$shift,$actual,$expected,$closeNotes,'web'):null;
                 $closeStmt=$pdo->prepare("UPDATE shift_sessions SET cash_income=?,cash_expense=?,expected_cash=?,actual_cash=?,variance=?,close_override_reason=?,status='closed',notes=CONCAT(COALESCE(notes,''), CASE WHEN COALESCE(notes,'')='' OR ?='' THEN '' ELSE '\n' END, ?),closed_at=CURRENT_TIMESTAMP WHERE id=? AND status='open'");
                 $closeStmt->execute([$income,$expense,$expected,$actual,$variance,$overrideReason?:null,$closeNotes,$closeNotes,$id]);
                 if($closeStmt->rowCount()!==1) throw new RuntimeException('Sesi shift berubah sebelum penutupan disimpan.');
@@ -332,7 +318,40 @@ switch ($action) {
                 $closedShift['reportId']=$reportId;
                 $closedShift['digitalRevenue']=$digital;
                 $closedShift['transactionsCount']=$txCount;
+                $closedShift['reviewId']=$reviewId;
                 writeRequiredEnterpriseAudit($pdo,$loggedInStaff,'Menutup shift kas','shift_session',$id,$shift,$closedShift);
+                tamasyaFinancialCommit($pdo);
+            } elseif ($command === 'shift-cash-revise') {
+                requireRoles($loggedInStaff,['admin','manager']);
+                $id=trim((string)($input['shiftId']??''));
+                $reason=trim((string)($input['reason']??''));
+                if(tamasyaStringLength($reason)<5)throw new InvalidArgumentException('Alasan revisi kas fisik minimal 5 karakter.');
+                if(!isset($input['actualCash'])||!is_numeric($input['actualCash']))throw new InvalidArgumentException('Kas fisik hasil revisi wajib berupa angka.');
+                $actual=round((float)$input['actualCash'],2);
+                if(!is_finite($actual)||$actual<0)throw new InvalidArgumentException('Kas fisik tidak boleh negatif/tidak valid.');
+                $pdo->beginTransaction();
+                $q=$pdo->prepare("SELECT * FROM shift_sessions WHERE id=? AND status='closed' LIMIT 1 FOR UPDATE");$q->execute([$id]);$before=$q->fetch(PDO::FETCH_ASSOC);
+                if(!$before)throw new RuntimeException('Hanya kas fisik shift yang sudah ditutup dapat direvisi.');
+                if(!isset($input['previousActualCash'])||!is_numeric($input['previousActualCash'])||abs(round((float)$input['previousActualCash']-(float)$before['actual_cash'],2))>0.001)
+                    throw new DomainException('Kas shift sudah berubah. Muat ulang sebelum merevisi.');
+                $q=$pdo->prepare("SELECT * FROM shift_reports WHERE shiftSessionId=? LIMIT 1 FOR UPDATE");$q->execute([$id]);$report=$q->fetch(PDO::FETCH_ASSOC);
+                if(!$report)throw new RuntimeException('Laporan penutupan shift belum tersedia; revisi dibatalkan.');
+                $variance=round($actual-(float)$before['expected_cash'],2);
+                $line='Revisi kas fisik oleh '.($loggedInStaff['name']??'Admin').': '.$reason;
+                $notes=trim((string)($before['notes']??''))."\n".$line;
+                $pdo->prepare("UPDATE shift_sessions SET actual_cash=?,variance=?,close_override_reason=?,notes=? WHERE id=? AND status='closed'")
+                    ->execute([$actual,$variance,$reason,$notes,$id]);
+                upsertShiftReportForSession($pdo,$before,(float)$before['expected_cash'],$actual,$variance,(float)$report['digitalRevenue'],(int)$report['transactionsCount'],$notes,$before['companion_staff_id']??null,getShiftDisplayName($before));
+                $after=array_replace($before,['actual_cash'=>$actual,'variance'=>$variance,'close_override_reason'=>$reason,'notes'=>$notes]);
+                writeRequiredEnterpriseAudit($pdo,$loggedInStaff,'Merevisi kas fisik shift tertutup','shift_session',$id,$before,$after,'web');
+                $pending=$pdo->prepare("SELECT * FROM approval_requests WHERE request_type='shift_cash_variance' AND entity_type='shift_session' AND entity_id=? AND status='pending' FOR UPDATE");$pending->execute([$id]);
+                foreach($pending->fetchAll(PDO::FETCH_ASSOC)?:[] as $review){
+                    $decisionNote='Kas fisik diperiksa dan direvisi: '.$reason;
+                    $pdo->prepare("UPDATE approval_requests SET status='approved',approver_id=?,approver_name=?,decision_notes=?,decided_at=CURRENT_TIMESTAMP WHERE id=? AND status='pending'")
+                        ->execute([$loggedInStaff['id'],$loggedInStaff['name'],$decisionNote,$review['id']]);
+                    writeRequiredEnterpriseAudit($pdo,$loggedInStaff,'Memeriksa selisih melalui revisi kas fisik','approval_request',(string)$review['id'],$review,array_replace($review,['status'=>'approved','decision_notes'=>$decisionNote,'revisedActualCash'=>$actual,'revisedVariance'=>$variance]),'web');
+                }
+                bumpServerRevision($pdo);
                 tamasyaFinancialCommit($pdo);
             } elseif ($command === 'approval-create') {
                 $id=generateServerId('approval');
@@ -358,6 +377,8 @@ switch ($action) {
                 $request=$pdo->prepare("SELECT * FROM approval_requests WHERE id=? AND status='pending' LIMIT 1 FOR UPDATE");$request->execute([$id]);$requestRow=$request->fetch();
                 if (!$requestRow) { $pdo->rollBack(); http_response_code(404); echo json_encode(['success'=>false,'error'=>'Permintaan tidak ditemukan atau sudah diputuskan.']); break; }
                 if (($requestRow['requester_id']??'')===($loggedInStaff['id']??'')) { $pdo->rollBack(); http_response_code(409); echo json_encode(['success'=>false,'error'=>'Pemohon tidak boleh menyetujui permintaannya sendiri.']); break; }
+                if(($requestRow['request_type']??'')==='shift_cash_variance' && tamasyaStringLength(trim((string)($input['notes']??'')))<5)
+                    throw new InvalidArgumentException('Hasil pemeriksaan selisih kas wajib berketerangan minimal 5 karakter.');
                 $pdo->prepare("UPDATE approval_requests SET status=?,approver_id=?,approver_name=?,decision_notes=?,decided_at=CURRENT_TIMESTAMP WHERE id=? AND status='pending'")
                     ->execute([$decision,$loggedInStaff['id'],$loggedInStaff['name'],trim((string)($input['notes']??'')),$id]);
                 if($decision==='approved' && ($requestRow['request_type']??'')==='maintenance_expense'){
@@ -2328,7 +2349,8 @@ Petugas: *".currentStaffLabel($loggedInStaff)."*",false);
             $companionStaffId=trim((string)($input['companionStaffId']??''));
             $shiftDate=trim((string)($input['shiftDate']??date('Y-m-d')));
             $shiftTime=trim((string)($input['shiftTime']??'all'));
-            $actualPhysicalCash=max(0,(float)($input['actualPhysicalCash']??0));
+            if(!isset($input['actualPhysicalCash'])||!is_numeric($input['actualPhysicalCash'])||!is_finite((float)$input['actualPhysicalCash'])||(float)$input['actualPhysicalCash']<0)throw new InvalidArgumentException('Kas fisik aktual wajib angka valid dan tidak negatif.');
+            $actualPhysicalCash=round((float)$input['actualPhysicalCash'],2);
             $notes=trim((string)($input['notes']??''));
             $operationId=trim((string)($input['operationId']??''));
             if($staffId==='' || !validIsoDate($shiftDate) || !in_array($shiftTime,['pagi','siang','malam','all'],true)) throw new InvalidArgumentException('Staf, tanggal, dan jadwal shift wajib valid.');
@@ -2347,7 +2369,7 @@ Petugas: *".currentStaffLabel($loggedInStaff)."*",false);
             if($existingRow){
                 tamasyaFinancialCommit($pdo);echo json_encode(['success'=>true,'message'=>'Laporan yang sama sudah pernah disimpan.','reportId'=>$reportId,'idempotent'=>true,'db'=>getRoleScopedHotelData($pdo,$loggedInStaff)]);break;
             }
-            $financials=getShiftFinancials($pdo,$staff,$shiftTime,$shiftDate,$companionStaffId!==''?$companionStaffId:'none');
+            $financials=getShiftFinancials($pdo,$staff,$shiftTime,$shiftDate,$companionStaffId!==''?$companionStaffId:'none',true);
             $expectedCash=(float)$financials['expectedCash'];$variance=$actualPhysicalCash-$expectedCash;
             $displayName=(string)$staff['name'].($companion?' & '.(string)$companion['name']:'');
             $pdo->prepare("INSERT INTO shift_reports (id,staffId,companionStaffId,shiftSessionId,staffName,shiftDate,shiftTime,startingCash,expectedCash,actualPhysicalCash,variance,digitalRevenue,transactionsCount,notes,createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)")

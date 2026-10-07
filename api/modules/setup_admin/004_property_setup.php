@@ -399,7 +399,7 @@ function tamasyaPropertyActionRequiresReady(string $action,string $method='GET',
     // as defense in depth.
     if($action==='operations-center'){
         return in_array($command,[
-            'shift-open','shift-close',
+            'shift-open','shift-close','shift-cash-revise',
             'reconciliation-import','reconciliation-save','reconciliation-status',
             'vacancy-report-create','vacancy-report-detail-update','vacancy-report-review',
             'housekeeping-save','housekeeping-status',

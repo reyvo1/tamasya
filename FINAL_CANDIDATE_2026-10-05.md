@@ -1,3 +1,5 @@
+> Kandidat terbaru R11: `20261007-telegram-shift-r11`. Lihat `TELEGRAM_SHIFT_AUDIT_2026-10-07.md` untuk deklarasi selisih Telegram, review dan revisi kas fisik Admin di web. Perbaikan R2–R10 tetap disertakan.
+
 > Kandidat terbaru: `20261007-growth-ui-r10`. Lihat `GROWTH_ENTERPRISE_UI_FIX_2026-10-07.md` untuk integrasi native Growth, filter laporan dan format Rupiah. Semua perbaikan R2–R9 tetap disertakan.
 
 > Riwayat R9: `20261007-hybrid-identity-r9`. Lihat `GITHUB_UAT_R8_ROOT_CAUSE_2026-10-07.md` untuk normalisasi identitas Telegram dan forwarding memo hybrid, beserta bukti log R8. Seluruh perbaikan R2–R8 tetap disertakan.

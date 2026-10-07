@@ -1,5 +1,5 @@
 // Keep full-screen dialogs outside page animation and sticky-navigation stacking contexts.
-import {f,t,F_} from "./vendor-react.js?v=20261007-growth-ui-r10";
+import {f,t,F_} from "./vendor-react.js?v=20261007-telegram-shift-r11";
 export function TamasyaFloatingLayer({children}) {
   return F_().createPortal(children,document.body);
 }

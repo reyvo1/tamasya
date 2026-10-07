@@ -171,5 +171,54 @@ if shift:
         sim_cb('close_shift_replay','tutup_shift_done:no_notes',message='uat-close-done')
         check('Telegram close-shift replay cannot create a second session',int(db("SELECT COUNT(*) n FROM shift_sessions WHERE id=? AND status='closed'",[shift['id']])[0]['n'])==closed_count)
 
+# R11: a receptionist declares shortage/overage in Telegram; Admin reviews or
+# revises physical cash on web. These execute only in the isolated GitHub UAT DB.
+old_tolerance=db("SELECT cash_variance_tolerance FROM hotel_operational_settings WHERE id='system_default'")[0]['cash_variance_tolerance']
+db("UPDATE hotel_operational_settings SET cash_variance_tolerance=0 WHERE id='system_default'")
+try:
+    for tag,physical,variance in [('short',49000.30,-1000.0),('over',51000.60,1000.30)]:
+        operator_id='uat_tg_shift_'+tag
+        operator_chat=900001021 if tag=='short' else 900001022
+        db("INSERT INTO staff(id,name,username,password,role,status,telegram_chat_id) VALUES (?,?,?,?,'receptionist','active',?)",[operator_id,'UAT Shift '+tag,operator_id,admin['password'],str(operator_chat)])
+        sim_cb('r11_open_menu_'+tag,'buka_shift_menu',chat=operator_chat,message='r11-open-'+tag)
+        sim_cb('r11_open_time_'+tag,'buka_shift_time:pagi',chat=operator_chat,message='r11-time-'+tag)
+        sim_cb('r11_open_companion_'+tag,'buka_shift_companion:none',chat=operator_chat,message='r11-companion-'+tag)
+        sim_text('r11_open_cash_'+tag,'50.000,30',chat=operator_chat)
+        opened=db("SELECT * FROM shift_sessions WHERE staff_id=? AND status='open'",[operator_id])
+        check('R11 Telegram opens exact cashier session with cent precision '+tag,len(opened)==1 and float(opened[0]['opening_cash'])==50000.30,opened)
+        if not opened: continue
+        sid=opened[0]['id']
+        sim_cb('r11_select_'+tag,'tutup_shift_select:'+sid,chat=operator_chat,message='r11-select-'+tag)
+        sim_cb('r11_reconcile_'+tag,'tutup_shift_time:pagi',chat=operator_chat,message='r11-reconcile-'+tag)
+        actual_text=f'{physical:.2f}'.replace('.',',')
+        _,preview=sim_text('r11_physical_'+tag,actual_text,chat=operator_chat)
+        state=db('SELECT telegram_state FROM staff WHERE id=?',[operator_id])[0]['telegram_state']
+        check('R11 receptionist can explain discrepancy without manager impersonation '+tag,state=='waiting_for_tutup_shift_notes' and 'keterangan' in preview.get('message',{}).get('text',''),preview.get('message'))
+        sim_cb('r11_no_notes_block_'+tag,'tutup_shift_done:no_notes',chat=operator_chat,message='r11-no-notes-'+tag)
+        check('R11 stale no-notes button cannot close a discrepancy '+tag,db('SELECT status FROM shift_sessions WHERE id=?',[sid])[0]['status']=='open')
+        before_money=int(db('SELECT COUNT(*) n FROM transactions')[0]['n'])
+        _,closed_reply=sim_text('r11_reason_'+tag,'Selisih '+tag+' ditemukan saat hitung uang laci.',chat=operator_chat)
+        closed=db('SELECT * FROM shift_sessions WHERE id=?',[sid])[0]
+        report=db('SELECT * FROM shift_reports WHERE shiftSessionId=?',[sid])
+        review=db("SELECT * FROM approval_requests WHERE entity_id=? AND request_type='shift_cash_variance'",[sid])
+        check('R11 Telegram persists CLOSED declaration plus one pending review '+tag,closed['status']=='closed' and float(closed['actual_cash'])==physical and abs(float(closed['variance'])-variance)<0.001 and len(report)==1 and len(review)==1 and review[0]['status']=='pending',{'shift':closed,'review':review,'reply':closed_reply.get('message')})
+        check('R11 closing discrepancy does not fabricate an income/expense transaction '+tag,int(db('SELECT COUNT(*) n FROM transactions')[0]['n'])==before_money)
+        check('R11 Telegram closure has required before/after enterprise audit '+tag,bool(db("SELECT id FROM audit_logs WHERE entity_type='shift_session' AND entity_id=? AND source='telegram'",[sid])))
+        _,ops=request('operations-center','GET',operation='r11_view_'+tag)
+        check('R11 pending discrepancy is visible in Admin web operations '+tag,any(a['entity_id']==sid and a['status']=='pending' for a in ops.get('data',{}).get('approvals',[])))
+        if tag=='short':
+            status,rev=request('operations-center','POST',{'command':'shift-cash-revise','shiftId':sid,'actualCash':50000.30,'previousActualCash':physical,'reason':'Hitung ulang admin menemukan uang di amplop kas.'},'r11_revise_'+tag)
+            revised=db('SELECT * FROM shift_sessions WHERE id=?',[sid])[0]
+            updated_report=db('SELECT * FROM shift_reports WHERE shiftSessionId=?',[sid])[0]
+            updated_review=db('SELECT * FROM approval_requests WHERE id=?',[review[0]['id']])[0]
+            check('R11 Admin web revision updates drawer and same report with audit, preserving transactions',status==200 and rev.get('success') is True and float(revised['actual_cash'])==50000.30 and float(revised['variance'])==0 and float(updated_report['actualPhysicalCash'])==50000.30 and updated_review['status']=='approved' and int(db('SELECT COUNT(*) n FROM transactions')[0]['n'])==before_money,{'revision':rev,'shift':revised,'review':updated_review})
+            status,stale=request('operations-center','POST',{'command':'shift-cash-revise','shiftId':sid,'actualCash':47000,'previousActualCash':physical,'reason':'Revisi dari tampilan lama harus ditolak.'},'r11_revise_stale')
+            check('R11 stale Admin revision cannot overwrite newer physical cash',status==409 and float(db('SELECT actual_cash FROM shift_sessions WHERE id=?',[sid])[0]['actual_cash'])==50000.30,stale)
+        else:
+            status,decision=request('operations-center','POST',{'command':'approval-decide','id':review[0]['id'],'decision':'approved','notes':'Selisih lebih dikonfirmasi admin; uang fisik tetap sesuai laporan.'},'r11_review_over')
+            check('R11 Admin acknowledges overage without erasing its amount',status==200 and float(db('SELECT variance FROM shift_sessions WHERE id=?',[sid])[0]['variance'])==variance and db('SELECT status FROM approval_requests WHERE id=?',[review[0]['id']])[0]['status']=='approved',decision)
+finally:
+    db("UPDATE hotel_operational_settings SET cash_variance_tolerance=? WHERE id='system_default'",[old_tolerance])
+
 check('Telegram UAT leaves journals balanced',not db('SELECT journal_entry_id FROM journal_lines GROUP BY journal_entry_id HAVING ABS(SUM(debit)-SUM(credit))>0.001'))
 print('TELEGRAM-UAT',sum(x['pass'] for x in results),'/',len(results))

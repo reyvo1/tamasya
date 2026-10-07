@@ -3761,11 +3761,11 @@ Perhitungan transaksi shift gagal. Sistem tidak menggunakan angka Rp0 sebagai pe
                             $alertText = "Data sesi tidak ada";
                         } else {
                             try {
-                                $result = finalizeTelegramShiftReport($pdo,$telegramCallbackOperationId,$loggedInStaff,$context,'Laporan kas laci cocok, diserahterimakan dengan tertib tanpa catatan.','callback');
-                                $postCallbackBroadcasts[]=[(string)$result['broadcastText'],true];
+                                $result = finalizeTelegramShiftReport($pdo,$telegramCallbackOperationId,$loggedInStaff,$context,'','callback');
+                                $postCallbackBroadcasts[]=[(string)$result['broadcastText'],true,'committed_shift'];
                                 $replyText = "✅ *LAPORAN SHIFT TERSIMPAN*
 
-Shift telah ditutup, sesi server berstatus *CLOSED*, dan rekonsiliasi kas tersimpan satu kali. Selisih: *{$result['varianceText']}*.";
+Shift telah ditutup, sesi server berstatus *CLOSED*, dan rekonsiliasi kas tersimpan satu kali. Selisih: *{$result['varianceText']}*.".(!empty($result['needsReview'])?"\n\n🔎 Selisih menunggu pemeriksaan Admin/Manager di web.":"");
                                 $alertText = "Shift ditutup";
                             } catch (TelegramDuplicateOperationException $duplicate) {
                                 $replyText = "ℹ️ Penutupan shift ini sudah diproses sebelumnya; laporan dan sesi tidak digandakan.";
@@ -3818,7 +3818,11 @@ Shift telah ditutup, sesi server berstatus *CLOSED*, dan rekonsiliasi kas tersim
                     // Untuk operasi lapangan seperti Housekeeping, actor menerima hasil
                     // lebih dulu. Broadcast tetap dijalankan walau edit actor gagal.
                     foreach ($postCallbackBroadcasts as $queuedBroadcast) {
-                        broadcastTelegramNotification($pdo,(string)($queuedBroadcast[0]??''),!empty($queuedBroadcast[1]));
+                        try{broadcastTelegramNotification($pdo,(string)($queuedBroadcast[0]??''),!empty($queuedBroadcast[1]));}
+                        catch(Throwable $deliveryError){
+                            if(($queuedBroadcast[2]??'')!=='committed_shift')throw $deliveryError;
+                            error_log(clientExceptionMessage('[Telegram] Shift sudah tersimpan; broadcast gagal',$deliveryError));
+                        }
                     }
                 }
                 $GLOBALS['tamasya_telegram_latency_edit_ms']=(int)round((microtime(true)-$telegramCallbackEditStartedAt)*1000);
@@ -4494,7 +4498,7 @@ Ketik kas awal berupa angka, misalnya `500000` atau `0`.";
                                 $displayName=$partnerName?($loggedInStaff['name'].' + '.$partnerName):(string)$loggedInStaff['name'];
                                 if($createdShift){
                                     $tgMessage="🔔 *SHIFT KAS DIBUKA*\n\n📅 {$shiftDate}\n⏰ ".strtoupper($shiftTime)."\n👥 Petugas: *{$displayName}*\n💵 Kas awal: *Rp ".tamasyaTelegramFormatAmount($startingCash)."*";
-                                    broadcastTelegramNotification($pdo,$tgMessage,true);
+                                    try{broadcastTelegramNotification($pdo,$tgMessage,true);}catch(Throwable $deliveryError){error_log(clientExceptionMessage('[Telegram] Shift terbuka tersimpan; broadcast gagal',$deliveryError));}
                                 }
                                 $replyText="✅ *SHIFT BERHASIL DIBUKA*\n\n👥 Petugas: *{$displayName}*\n💵 Kas awal: *Rp ".tamasyaTelegramFormatAmount($startingCash)."*\n\nTransaksi kedua peserta akan masuk ke sesi kas yang sama.";
                                 $replyMarkup=['inline_keyboard'=>[[['text'=>'⬅️ Menu Utama','callback_data'=>'main_menu']]]];
@@ -4524,7 +4528,12 @@ Ketik kas awal berupa angka, misalnya `500000` atau `0`.";
                         $context = json_decode($currentCtx, true);
                         if ($context) {
                             $context['actualCash'] = $actualCash;
-                            $expectedCash = (float)($context['expectedCash'] ?? 0);
+                            try{
+                                $fresh=getShiftFinancials($pdo,$loggedInStaff,$context['shiftTime']??'',$context['shiftDate']??'',$context['companionId']??'none',true,(string)($context['shiftId']??''));
+                            }catch(Throwable $previewError){
+                                throw new RuntimeException('Perhitungan shift berubah/gagal. Buka ulang Tutup Shift.',0,$previewError);
+                            }
+                            $expectedCash=(float)$fresh['expectedCash'];$context['expectedCash']=$expectedCash;
                             $variance = $actualCash - $expectedCash;
                             $settings=$pdo->query("SELECT cash_variance_tolerance FROM hotel_operational_settings WHERE id='system_default' LIMIT 1")->fetch(PDO::FETCH_ASSOC)?:[];
                             $tolerance=max(0.0,(float)($settings['cash_variance_tolerance']??0));
@@ -4537,65 +4546,22 @@ Ketik kas awal berupa angka, misalnya `500000` atau `0`.";
                                 $varianceText = "KURANG (Rp " . tamasyaTelegramFormatAmount($variance) . ")";
                             }
 
-                            if(abs($variance)>$tolerance){
-                                $newCtx=json_encode($context,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-                                if(in_array($role,['admin','manager'],true)){
-                                    $pdo->prepare("UPDATE staff SET telegram_state='waiting_for_tutup_shift_override_reason',telegram_context=? WHERE id=?")
-                                        ->execute([$newCtx,$loggedInStaff['id']]);
-                                    $replyText="⚠️ *SELISIH KAS MELEBIHI TOLERANSI*
-
-" .
-                                        "💵 Fisik Aktual: *Rp ".tamasyaTelegramFormatAmount($actualCash)."*
-" .
-                                        "📊 Seharusnya: *Rp ".tamasyaTelegramFormatAmount($expectedCash)."*
-" .
-                                        "⚠️ Selisih: *{$varianceText}*
-" .
-                                        "🎯 Toleransi: *Rp ".tamasyaTelegramFormatAmount($tolerance)."*
-
-" .
-                                        "Sebagai Admin/Manager, ketik alasan override minimal 5 karakter. Penutupan belum dilakukan sebelum alasan tersimpan.";
-                                    $replyMarkup=['inline_keyboard'=>[[['text'=>'❌ Batalkan','callback_data'=>'cancel_tutup_shift']]]];
-                                }else{
-                                    $pdo->prepare("UPDATE staff SET telegram_state='waiting_for_tutup_shift_cash',telegram_context=? WHERE id=?")
-                                        ->execute([$newCtx,$loggedInStaff['id']]);
-                                    $replyText="⚠️ *SELISIH KAS MEMERLUKAN PERSETUJUAN*
-
-" .
-                                        "Selisih *{$varianceText}* melebihi toleransi *Rp ".tamasyaTelegramFormatAmount($tolerance)."*.
-
-" .
-                                        "Admin/Manager harus menutup shift dari akun mereka, atau masukkan ulang nominal fisik bila angka tadi salah. Shift belum ditutup.";
-                                    $replyMarkup=['inline_keyboard'=>[[['text'=>'🔄 Muat Shift Aktif','callback_data'=>'tutup_shift_menu'],['text'=>'❌ Batalkan','callback_data'=>'cancel_tutup_shift']]]];
-                                }
+                            $newCtx=json_encode($context,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+                            $needsOverride=abs(round($variance,2))>$tolerance&&in_array($role,['admin','manager'],true);
+                            $pdo->prepare("UPDATE staff SET telegram_state=?,telegram_context=? WHERE id=?")
+                                ->execute([$needsOverride?'waiting_for_tutup_shift_override_reason':'waiting_for_tutup_shift_notes',$newCtx,$loggedInStaff['id']]);
+                            $replyText="🔍 *REKONSILIASI KAS SEMENTARA*\n\n💵 Fisik Aktual: *Rp ".tamasyaTelegramFormatAmount($actualCash)."*\n📊 Seharusnya: *Rp ".tamasyaTelegramFormatAmount($expectedCash)."*\n⚠️ Selisih Laci: *{$varianceText}*\n\n";
+                            if($needsOverride){
+                                $replyText.="Ketik alasan override minimal 5 karakter. Penutupan belum dilakukan.";
+                            }elseif(round($variance,2)!=0.0){
+                                $replyText.="Ketik keterangan uang kurang/lebih minimal 5 karakter. ".(abs($variance)>$tolerance?"Shift akan ditutup dengan selisih tercatat dan diajukan untuk pemeriksaan Admin/Manager di web.":"Selisih berada dalam toleransi dan tetap dicatat.");
                             }else{
-                                $newCtx = json_encode($context,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-                                $stmtSetState = $pdo->prepare("UPDATE staff SET telegram_state = 'waiting_for_tutup_shift_notes', telegram_context = ? WHERE id = ?");
-                                $stmtSetState->execute([$newCtx, $loggedInStaff['id']]);
-
-                                $replyText = "🔍 *REKONSILIASI KAS SEMENTARA*
-
-" .
-                                             "💵 Fisik Aktual: *Rp " . tamasyaTelegramFormatAmount($actualCash) . "*
-" .
-                                             "📊 Seharusnya: *Rp " . tamasyaTelegramFormatAmount($expectedCash) . "*
-" .
-                                             "⚠️ Selisih Laci: *{$varianceText}*
-
-" .
-                                             "📝 *CATATAN REKONSILIASI*
-" .
-                                             "Silakan ketik catatan tambahan jika ada selisih atau ingin memberikan deskripsi serah terima shift:
-" .
-                                             "*(Contoh: 'selisih Rp 5.000 karena tidak ada kembalian' atau klik tombol di bawah untuk kirim langsung tanpa catatan)*";
-
-                                $replyMarkup = [
-                                    "inline_keyboard" => [
-                                        [["text" => "✅ Kirim Tanpa Catatan", "callback_data" => "tutup_shift_done:no_notes"]],
-                                        [["text" => "❌ Batalkan", "callback_data" => "cancel_tutup_shift"]]
-                                    ]
-                                ];
+                                $replyText.="Ketik catatan serah terima atau kirim tanpa catatan.";
                             }
+                            $buttons=[];
+                            if(round($variance,2)==0.0)$buttons[]=[['text'=>'✅ Kirim Tanpa Catatan','callback_data'=>'tutup_shift_done:no_notes']];
+                            $buttons[]=[['text'=>'❌ Batalkan','callback_data'=>'cancel_tutup_shift']];
+                            $replyMarkup=['inline_keyboard'=>$buttons];
                         } else {
                             $replyText = "⚠️ Terjadi kesalahan memuat data sesi Tutup Shift.";
                             $replyMarkup = [
@@ -4642,10 +4608,12 @@ Ketik catatan serah-terima tambahan, atau kirim tanpa catatan.";
                         $operationId = $telegramUpdateOperationId . '_close_shift';
                         try {
                             $result = finalizeTelegramShiftReport($pdo,$operationId,$loggedInStaff,$context,$notesText,'message');
-                            broadcastTelegramNotification($pdo,$result['broadcastText'],true);
+                            $deliveryWarning='';
+                            try{broadcastTelegramNotification($pdo,$result['broadcastText'],true);}
+                            catch(Throwable $deliveryError){$deliveryWarning="\n\n⚠️ Data tersimpan, tetapi notifikasi grup gagal terkirim.";error_log(clientExceptionMessage('[Telegram] Broadcast shift gagal setelah commit',$deliveryError));}
                             $replyText = "✅ *LAPORAN SHIFT TERSIMPAN*
 
-Shift ditutup di database server dengan catatan Anda. Selisih: *{$result['varianceText']}*.";
+Shift ditutup di database server dengan catatan Anda. Selisih: *{$result['varianceText']}*.".(!empty($result['needsReview'])?"\n\n🔎 Selisih menunggu pemeriksaan Admin/Manager di web.":"").$deliveryWarning;
                         } catch (TelegramDuplicateOperationException $duplicate) {
                             $replyText = "ℹ️ Laporan shift ini sudah diproses; database tidak digandakan.";
                         } catch (Throwable $shiftError) {

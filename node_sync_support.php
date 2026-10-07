@@ -330,7 +330,7 @@ function tamasyaNodeSyncAllowedAction(string $action, array $input, string $meth
     if ($action !== 'operations-center') return true;
     $command = strtolower(trim((string)($input['command'] ?? '')));
     $allowedCommands = [
-        'shift-open','shift-close','approval-create','approval-decide','reconciliation-import',
+        'shift-open','shift-close','shift-cash-revise','approval-create','approval-decide','reconciliation-import',
         'reconciliation-save','reconciliation-status','vacancy-report-create','vacancy-report-detail-update','vacancy-report-review',
         'housekeeping-save','housekeeping-status','maintenance-ticket-save','maintenance-ticket-status',
         'guest-profile-save','guest-sync','guest-service-open','guest-service-progress','guest-service-close','lost-found-secure','lost-found-notify','lost-found-close','maintenance-cancellation-review','operational-incident-open','operational-incident-progress','operational-incident-resolve','room-hold-open','room-hold-release','alert-ack','room-access-save','key-issue','key-return',

@@ -177,6 +177,54 @@ function assertShiftNightAuditReady(PDO $pdo, array $shift, array $settings): vo
     if($unresolved>0)throw new RuntimeException("Masih ada {$unresolved} temuan Night Audit yang belum diselesaikan Manager.");
 }
 
+function tamasyaShiftSettlementTotals(array $transactions): array {
+    $cashInc = 0;
+    $cashExp = 0;
+    $digitalInc = 0;
+
+    foreach ($transactions as $t) {
+        if(tamasyaTransactionIsHistorical($t) || !empty($t['shiftExempt']))continue;
+        $amount = (float)$t['amount'];
+        $bankAccId = isset($t['bankAccountId']) ? strtolower(trim((string)$t['bankAccountId'])) : '';
+        $kind = strtolower(trim((string)($t['transactionKind'] ?? 'manual')));
+        $hasBank = !empty($bankAccId) && $bankAccId !== 'cash' && $bankAccId !== 'none';
+        $isTechnicalNonLiquid = in_array($bankAccId,['ota_receivable','inventory_asset','guest_receivable','accounts_payable'],true);
+        $isNonCashForfeit = $kind === 'security_deposit_forfeit';
+        $isInternal = in_array($kind,['internal_transfer','ota_transfer'],true) || strtolower(trim((string)($t['sourceEntity'] ?? '')))==='ota_disbursement';
+
+        if ($isTechnicalNonLiquid || $isNonCashForfeit) continue;
+        $splitActive=!empty($t['isSplitPayment']);
+        $splitCash=round((float)($t['splitCashAmount']??0),2);
+        $splitTransfer=round((float)($t['splitTransferAmount']??0),2);
+        $splitBank=trim((string)($t['splitTransferBankAccountId']??''));
+        $validSplit=$splitActive && $splitCash>0 && $splitTransfer>0 && !in_array(strtolower($splitBank),['','cash','none','ota_receivable','inventory_asset','guest_receivable','accounts_payable'],true)
+            && abs(round($splitCash+$splitTransfer-$amount,2))<=0.01;
+        if ($t['type'] === 'income') {
+            if($validSplit){
+                // One canonical split transaction represents two settlement legs.
+                // The cash leg changes the physical drawer; the transfer leg is
+                // digital revenue unless this is an internal movement.
+                $cashInc += $splitCash;
+                if(!$isInternal)$digitalInc += $splitTransfer;
+            } elseif ($hasBank) {
+                if (!$isInternal) $digitalInc += $amount;
+            } else {
+                // Kaki kas dari mutasi internal tetap memengaruhi isi laci fisik.
+                $cashInc += $amount;
+            }
+        } elseif ($t['type'] === 'expense') {
+            if($validSplit){
+                $cashExp += $splitCash;
+            } elseif (!$hasBank) {
+                $cashExp += $amount;
+            }
+        }
+    }
+
+    return ['cashInc'=>round($cashInc,2),'cashExp'=>round($cashExp,2),'digitalInc'=>round($digitalInc,2),'txCount'=>count($transactions)];
+}
+
+
 /** Source line 4844: getShiftFinancials */
 function getShiftFinancials($pdo, $staffMember, $shiftTime, $shiftDate, $companionId = 'none', bool $strict = false, ?string $explicitShiftSessionId = null) {
     $calculationError = false;
@@ -193,6 +241,7 @@ function getShiftFinancials($pdo, $staffMember, $shiftTime, $shiftDate, $compani
         $usesSession = $session
             && (string)($session['shift_date']??'') === (string)$shiftDate
             && (string)($session['shift_time']??'') === (string)$shiftTime;
+        if($strict && $explicitShiftSessionId!=='' && !$usesSession)throw new RuntimeException('Tanggal/jadwal tidak cocok dengan sesi shift target.');
         if($usesSession){
             $stmt=$pdo->prepare("SELECT * FROM transactions WHERE shiftSessionId=? ORDER BY createdAt,id");
             $stmt->execute([(string)$session['id']]);
@@ -277,50 +326,10 @@ function getShiftFinancials($pdo, $staffMember, $shiftTime, $shiftDate, $compani
             $calculationError = true;
             error_log('[Shift Financials] Gagal membaca kas awal: ' . $e->getMessage());
         }
-        $cashInc = 0;
-        $cashExp = 0;
-        $digitalInc = 0;
-        $txCount = count($filteredTx);
-        
-        foreach ($filteredTx as $t) {
-            $amount = (float)$t['amount'];
-            $bankAccId = isset($t['bankAccountId']) ? strtolower(trim((string)$t['bankAccountId'])) : '';
-            $kind = strtolower(trim((string)($t['transactionKind'] ?? 'manual')));
-            $hasBank = !empty($bankAccId) && $bankAccId !== 'cash' && $bankAccId !== 'none';
-            $isTechnicalNonLiquid = in_array($bankAccId,['ota_receivable','inventory_asset','guest_receivable','accounts_payable'],true);
-            $isNonCashForfeit = $kind === 'security_deposit_forfeit';
-            $isInternal = in_array($kind,['internal_transfer','ota_transfer'],true) || strtolower(trim((string)($t['sourceEntity'] ?? '')))==='ota_disbursement';
+        $totals=tamasyaShiftSettlementTotals($filteredTx);
+        $cashInc=$totals['cashInc'];$cashExp=$totals['cashExp'];$digitalInc=$totals['digitalInc'];$txCount=$totals['txCount'];
 
-            if ($isTechnicalNonLiquid || $isNonCashForfeit) continue;
-            $splitActive=!empty($t['isSplitPayment']);
-            $splitCash=round((float)($t['splitCashAmount']??0),2);
-            $splitTransfer=round((float)($t['splitTransferAmount']??0),2);
-            $splitBank=trim((string)($t['splitTransferBankAccountId']??''));
-            $validSplit=$splitActive && $splitCash>0 && $splitTransfer>0 && $splitBank!==''
-                && moneyMatches($splitCash+$splitTransfer,$amount,0.01);
-            if ($t['type'] === 'income') {
-                if($validSplit){
-                    // One canonical split transaction represents two settlement legs.
-                    // The cash leg changes the physical drawer; the transfer leg is
-                    // digital revenue unless this is an internal movement.
-                    $cashInc += $splitCash;
-                    if(!$isInternal)$digitalInc += $splitTransfer;
-                } elseif ($hasBank) {
-                    if (!$isInternal) $digitalInc += $amount;
-                } else {
-                    // Kaki kas dari mutasi internal tetap memengaruhi isi laci fisik.
-                    $cashInc += $amount;
-                }
-            } elseif ($t['type'] === 'expense') {
-                if($validSplit){
-                    $cashExp += $splitCash;
-                } elseif (!$hasBank) {
-                    $cashExp += $amount;
-                }
-            }
-        }
-        
-        $expectedCash = $startingCash + $cashInc - $cashExp;
+        $expectedCash = round($startingCash + $cashInc - $cashExp,2);
         
         return [
             "startingCash" => $startingCash,
@@ -369,18 +378,41 @@ function upsertShiftReportForSession(PDO $pdo, array $shift, float $expectedCash
     return $reportId;
 }
 
+function tamasyaShiftVariancePolicy(array $staff, float $variance, float $tolerance, string $notes, string $overrideReason=''): array {
+    if(!tamasyaCanOperateShift($staff))throw new RuntimeException('Akun tidak diizinkan menutup shift.');
+    if(!is_finite($variance)||!is_finite($tolerance))throw new InvalidArgumentException('Perhitungan selisih tidak valid.');
+    $variance=round($variance,2);$tolerance=max(0,round($tolerance,2));
+    $notes=trim($notes);$overrideReason=trim($overrideReason);
+    $manager=in_array(strtolower((string)($staff['role']??'')),['admin','manager'],true);
+    if($variance!=0.0 && tamasyaStringLength($notes)<5 && !($manager && tamasyaStringLength($overrideReason)>=5))
+        throw new InvalidArgumentException('Uang kurang/lebih wajib disertai keterangan minimal 5 karakter.');
+    if(abs($variance)>$tolerance && $manager && tamasyaStringLength($overrideReason)<5)
+        throw new InvalidArgumentException('Admin/Manager wajib mengisi alasan override selisih minimal 5 karakter.');
+    return ['needsReview'=>abs($variance)>$tolerance&&!$manager,'overrideReason'=>abs($variance)>$tolerance&&$manager?$overrideReason:null];
+}
+
+function tamasyaCreateShiftVarianceReview(PDO $pdo, array $staff, array $shift, float $actual, float $expected, string $reason, string $source): string {
+    if(!$pdo->inTransaction())throw new RuntimeException('Review selisih wajib dalam transaksi penutupan shift.');
+    $id='approval_shift_'.substr(hash('sha256',(string)$shift['id']),0,32);
+    $payload=['shiftId'=>$shift['id'],'actualCash'=>$actual,'expectedCash'=>$expected,'variance'=>round($actual-$expected,2),'source'=>$source];
+    $pdo->prepare("INSERT INTO approval_requests (id,request_type,entity_type,entity_id,amount,reason,payload,requester_id,requester_name,status,created_at) VALUES (?,'shift_cash_variance','shift_session',?,?,?,?,?,?,'pending',CURRENT_TIMESTAMP)")
+        ->execute([$id,$shift['id'],abs($payload['variance']),$reason,json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),$staff['id'],$staff['name']??'Staf']);
+    writeRequiredEnterpriseAudit($pdo,$staff,'Mengajukan pemeriksaan selisih kas shift','approval_request',$id,null,$payload+['status'=>'pending','reason'=>$reason],$source);
+    return $id;
+}
+
 /** Source line 4996: finalizeTelegramShiftReport */
 function finalizeTelegramShiftReport($pdo, string $operationId, array $staff, array $context, string $notes, string $action = 'callback'): array {
     tamasyaRequirePropertyReadyForLiveMutation($pdo,'penutupan shift kas via Telegram');
     $staffId = trim((string)($staff['id'] ?? ''));
     $shiftDate = trim((string)($context['shiftDate'] ?? ''));
     $shiftTime = trim((string)($context['shiftTime'] ?? ''));
-    $actualCash = isset($context['actualCash']) ? (float)$context['actualCash'] : null;
+    $actualCash = isset($context['actualCash']) && is_numeric($context['actualCash']) ? round((float)$context['actualCash'],2) : null;
     $companionId = trim((string)($context['companionId'] ?? 'none')) ?: 'none';
-    if ($staffId === '' || !validIsoDate($shiftDate) || !in_array($shiftTime,['pagi','siang','malam','all'],true) || $actualCash === null || $actualCash < 0) {
+    if ($staffId === '' || !validIsoDate($shiftDate) || !in_array($shiftTime,['pagi','siang','malam','all'],true) || $actualCash === null || !is_finite($actualCash) || $actualCash < 0) {
         throw new InvalidArgumentException('Konteks tutup shift tidak valid.');
     }
-    $notes = trim($notes) !== '' ? trim($notes) : 'Laporan kas laci cocok, diserahterimakan dengan tertib tanpa catatan.';
+    $notes = trim($notes);
     $operationId=normalizeTelegramMutationOperationId($operationId);
     $ownsTransaction = !$pdo->inTransaction();
     if ($ownsTransaction) $pdo->beginTransaction();
@@ -427,19 +459,12 @@ function finalizeTelegramShiftReport($pdo, string $operationId, array $staff, ar
         $expectedCash = (float)$financials['expectedCash'];
         $digitalRevenue = (float)$financials['digitalInc'];
         $txCount = (int)$financials['txCount'];
-        $variance = $actualCash - $expectedCash;
+        $variance = round($actualCash - $expectedCash,2);
         $tolerance=max(0.0,(float)($settings['cash_variance_tolerance']??0));
-        if(abs($variance)>$tolerance){
-            $role=strtolower((string)($staff['role']??''));
-            if(!in_array($role,['admin','manager'],true)){
-                throw new RuntimeException('Selisih kas Rp '.number_format(abs($variance),0,',','.').' melebihi toleransi. Penutupan memerlukan persetujuan Admin/Manager.');
-            }
-            if(tamasyaStringLength($overrideReason)<5){
-                throw new RuntimeException('Admin/Manager wajib mengisi alasan override selisih kas minimal 5 karakter.');
-            }
-        }else{
-            $overrideReason='';
-        }
+        $policy=tamasyaShiftVariancePolicy($staff,$variance,$tolerance,$notes,$overrideReason);
+        $overrideReason=$policy['overrideReason'];
+        if($notes==='')$notes=$overrideReason?:'Serah terima tanpa catatan tambahan.';
+        $reviewId=$policy['needsReview']?tamasyaCreateShiftVarianceReview($pdo,$staff,$session,$actualCash,$expectedCash,$notes,'telegram'):null;
         $staffName = (string)($staff['name'] ?? 'Staf');
         $companionName = trim((string)($session['companion_staff_name'] ?? ''));
         $reportStaffName = getShiftDisplayName($session);
@@ -448,13 +473,15 @@ function finalizeTelegramShiftReport($pdo, string $operationId, array $staff, ar
             $companionId !== 'none' ? $companionId : null,$reportStaffName
         );
         $stmtClose = $pdo->prepare("UPDATE shift_sessions SET cash_income=?,cash_expense=?,expected_cash=?,actual_cash=?,variance=?,close_override_reason=?,status='closed',notes=?,closed_at=CURRENT_TIMESTAMP WHERE id=? AND status='open'");
-        $stmtClose->execute([(float)$financials['cashInc'],(float)$financials['cashExp'],$expectedCash,$actualCash,$variance,$overrideReason!==''?$overrideReason:null,$notes,$session['id']]);
+        $stmtClose->execute([(float)$financials['cashInc'],(float)$financials['cashExp'],$expectedCash,$actualCash,$variance,$overrideReason?:null,trim((string)($session['notes']??'')).(empty($session['notes'])?'':"\n").$notes,$session['id']]);
         if ($stmtClose->rowCount() !== 1) throw new RuntimeException('Sesi shift berubah sebelum penutupan disimpan.');
         tamasyaLockTransactionsForShift($pdo,(string)$session['id'],$staff);
+        $closed=$session;$closed['status']='closed';$closed['actual_cash']=$actualCash;$closed['expected_cash']=$expectedCash;$closed['variance']=$variance;$closed['notes']=trim((string)($session['notes']??'')).(empty($session['notes'])?'':"\n").$notes;$closed['close_override_reason']=$overrideReason;$closed['reviewId']=$reviewId;
+        writeRequiredEnterpriseAudit($pdo,$staff,'Menutup shift kas Telegram','shift_session',(string)$session['id'],$session,$closed,'telegram');
         $notifId = 'notif_tg_shift_' . substr(hash('sha256',$operationId),0,28);
         $varianceText = $variance == 0.0 ? 'PAS / COCOK (Rp 0)' : ($variance > 0
-            ? 'LEBIH (+Rp '.number_format($variance,0,',','.').')'
-            : 'KURANG (Rp '.number_format($variance,0,',','.').')');
+            ? 'LEBIH (+Rp '.tamasyaTelegramFormatAmount($variance).')'
+            : 'KURANG (Rp '.tamasyaTelegramFormatAmount(abs($variance)).')');
         $notifMsg = "Tutup Shift {$reportStaffName} ({$shiftTime}, Selisih: {$varianceText}) tersimpan di database.";
         $pdo->prepare("INSERT INTO notifications (id,message,timestamp,`read`,type) VALUES (?,?,?,0,'system')")
             ->execute([$notifId,$notifMsg,date('Y-m-d H:i:s')]);
@@ -463,6 +490,7 @@ function finalizeTelegramShiftReport($pdo, string $operationId, array $staff, ar
         completeTelegramMutation($pdo,$operationId,['reportId'=>$reportId,'shiftSessionId'=>$session['id'],'variance'=>$variance]);
         bumpServerRevision($pdo);
         if ($ownsTransaction) tamasyaFinancialCommit($pdo);
+        $reviewText=$reviewId?'Menunggu pemeriksaan Admin/Manager di web.':'Rekonsiliasi tersimpan.';
         $shiftLabel = ['pagi'=>'Shift Pagi (07:00 - 15:00)','siang'=>'Shift Siang (15:00 - 23:00)','malam'=>'Shift Malam (23:00 - 07:00)','all'=>'Satu Hari Penuh (24 Jam)'][$shiftTime];
         $tgMessage = "🔔 *LAPORAN SERAH TERIMA SHIFT & REKONSILIASI KAS*
 
@@ -472,18 +500,19 @@ function finalizeTelegramShiftReport($pdo, string $operationId, array $staff, ar
 ⏰ Jadwal: *{$shiftLabel}*
 
 " .
-                     "💵 Modal awal: *Rp ".number_format($startingCash,0,',','.')."*
+                     "💵 Modal awal: *Rp ".tamasyaTelegramFormatAmount($startingCash)."*
 " .
-                     "📊 Kas seharusnya: *Rp ".number_format($expectedCash,0,',','.')."*
+                     "📊 Kas seharusnya: *Rp ".tamasyaTelegramFormatAmount($expectedCash)."*
 " .
-                     "🔍 Kas aktual: *Rp ".number_format($actualCash,0,',','.')."*
+                     "🔍 Kas aktual: *Rp ".tamasyaTelegramFormatAmount($actualCash)."*
 " .
                      "⚠️ Selisih: *{$varianceText}*
-💳 Non-tunai: *Rp ".number_format($digitalRevenue,0,',','.')."*
+💳 Non-tunai: *Rp ".tamasyaTelegramFormatAmount($digitalRevenue)."*
 " .
                      "📈 Jumlah transaksi: *{$txCount}*
+🔎 Status: {$reviewText}
 📝 Catatan: _".str_replace(['_','*','`','[',']','(',')'],'',$notes).'_';
-        return ['reportId'=>$reportId,'shiftSessionId'=>$session['id'],'variance'=>$variance,'varianceText'=>$varianceText,'overrideReason'=>$overrideReason!==''?$overrideReason:null,'broadcastText'=>$tgMessage];
+        return ['reportId'=>$reportId,'shiftSessionId'=>$session['id'],'variance'=>$variance,'varianceText'=>$varianceText,'overrideReason'=>$overrideReason?:null,'needsReview'=>(bool)$reviewId,'reviewId'=>$reviewId,'broadcastText'=>$tgMessage];
     } catch (Throwable $e) {
         if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
         failTelegramMutation($pdo,$operationId,$e);

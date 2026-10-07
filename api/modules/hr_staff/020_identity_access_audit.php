@@ -879,12 +879,16 @@ function getOperationsCenterData($pdo) {
     };
     $auditLogs = $fetch("SELECT id,staff_id,staff_name,source,action,entity_type,entity_id,outcome,request_id,operation_id,node_id,cluster_id,property_id,created_at FROM audit_logs ORDER BY created_at DESC LIMIT 500",'auditLogs');
     $shiftSessions = $fetch("SELECT * FROM shift_sessions ORDER BY opened_at DESC LIMIT 150",'shiftSessions');
-    $shiftTransactionTotals = $fetch("SELECT shiftSessionId,
-        COALESCE(SUM(CASE WHEN type='income' AND COALESCE(transactionKind,'manual')<>'security_deposit_forfeit' THEN CASE WHEN COALESCE(isSplitPayment,0)=1 AND COALESCE(splitCashAmount,0)>0 AND COALESCE(splitTransferAmount,0)>0 AND COALESCE(splitTransferBankAccountId,'')<>'' AND ABS(amount-(COALESCE(splitCashAmount,0)+COALESCE(splitTransferAmount,0)))<=0.01 THEN COALESCE(splitCashAmount,0) WHEN (bankAccountId IS NULL OR bankAccountId='' OR bankAccountId='cash') THEN amount ELSE 0 END ELSE 0 END),0) AS cash_income,
-        COALESCE(SUM(CASE WHEN type='expense' THEN CASE WHEN COALESCE(isSplitPayment,0)=1 AND COALESCE(splitCashAmount,0)>0 AND COALESCE(splitTransferAmount,0)>0 AND COALESCE(splitTransferBankAccountId,'')<>'' AND ABS(amount-(COALESCE(splitCashAmount,0)+COALESCE(splitTransferAmount,0)))<=0.01 THEN COALESCE(splitCashAmount,0) WHEN (bankAccountId IS NULL OR bankAccountId='' OR bankAccountId='cash') THEN amount ELSE 0 END ELSE 0 END),0) AS cash_expense
-        FROM transactions
-        WHERE shiftSessionId IS NOT NULL AND shiftSessionId<>''
-        GROUP BY shiftSessionId",'shiftTransactionTotals');
+    // Preview and closure share the exact settlement calculator. Fetch only open
+    // sessions, so closed historical archives are not scanned on every refresh.
+    $shiftTransactions=$fetch("SELECT t.* FROM transactions t JOIN shift_sessions s ON s.id=t.shiftSessionId AND s.status='open'",'shiftTransactionTotals');
+    $groupedShiftTransactions=[];
+    foreach($shiftTransactions as $tx)$groupedShiftTransactions[(string)$tx['shiftSessionId']][]=$tx;
+    $shiftTransactionTotals=[];
+    foreach($groupedShiftTransactions as $shiftId=>$rows){
+        $totals=tamasyaShiftSettlementTotals($rows);
+        $shiftTransactionTotals[]=['shiftSessionId'=>$shiftId,'cash_income'=>$totals['cashInc'],'cash_expense'=>$totals['cashExp']];
+    }
     $shiftSessions = projectOpenShiftFinancials($shiftSessions,$shiftTransactionTotals);
     $approvals = $fetch("SELECT * FROM approval_requests ORDER BY created_at DESC LIMIT 200",'approvals');
     $sessions = $fetch("SELECT us.id,us.staff_id,s.name AS staff_name,s.username,us.device_id,us.device_name,us.user_agent,us.ip_address,us.last_activity,us.expires_at,us.revoked_at,us.created_at FROM user_sessions us LEFT JOIN staff s ON s.id=us.staff_id ORDER BY us.last_activity DESC LIMIT 250",'sessions');
