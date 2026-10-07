@@ -237,7 +237,7 @@ await test('Enterprise Full Complete UAT is additive, two-node, fail-closed and 
  assert.ok(posRouteFull.includes("throw new DomainException('Produk telah berubah pada perangkat lain. Muat ulang sebelum menyimpan.')"),'stale POS optimistic-concurrency writes must be HTTP 409 business conflicts, never 500');
  const posDatePolicy=fs.readFileSync(path.join(root,'assets/pos-business-date-policy.js'),'utf8');
  assert.ok(posClientFull.includes("businessDate: String(data.businessDate || '')")&&posClientFull.includes('syncSalesDateFilter(false);')&&posDatePolicy.includes('businessMonthStart')&&!posClientFull.includes('const today = new Date(); const first = new Date(today.getFullYear(), today.getMonth(), 1);'),'POS sales filters must follow the server-authoritative business date through explicit rollover policy rather than browser timezone');
- assert.ok(posHtmlFull.includes('pos-business-date-policy.js?v=20261007-growth-ui-r10')&&posHtmlFull.includes('pos-minibar.js?v=20261003-prd-r7-rollover'),'changed POS rollover policy/client must be cache-busted for deployed browsers');
+ assert.ok(posHtmlFull.includes('pos-business-date-policy.js?v=20261007-growth-ui-r10')&&posHtmlFull.includes('pos-minibar.js?v=20261007-growth-ui-r10'),'changed POS rollover policy/client must be cache-busted for deployed browsers');
  const browserFull=fs.readFileSync(path.join(root,'tests/uat_rc1/browser/rc1-ui.spec.mjs'),'utf8');
  assert.ok(browserFull.includes("toHaveValue(sale.saleDate)")&&browserFull.includes("inputValue())<=sale.saleDate"),'browser POS lifecycle must prove its report window contains the canonical sale business date');
  const telegramParityFull=fs.readFileSync(path.join(root,'tests/uat_rc1/scenario_telegram_parity_complete.py'),'utf8');

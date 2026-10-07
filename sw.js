@@ -45,7 +45,7 @@ const ASSETS_TO_CACHE = [
   "./assets/app-core.css?v=20260829-fix37-scrollbar-clip",
   "./assets/pos-minibar.css?v=20261007-growth-ui-r10",
   "./assets/pos-business-date-policy.js?v=20261007-growth-ui-r10",
-  "./assets/pos-minibar.js?v=20261003-prd-r7-rollover",
+  "./assets/pos-minibar.js?v=20261007-growth-ui-r10",
   "./assets/internal-memo.css?v=20261007-growth-ui-r10",
   "./assets/internal-memo.js",
   "./assets/master-data-workspace.js?v=20260821-audit16-prelock-observer-scope",
@@ -59,7 +59,7 @@ const ASSETS_TO_CACHE = [
   "./assets/growth-suite.js?v=20261007-growth-ui-r10",
   "./assets/enterprise-suite.js?v=20261007-growth-ui-r10",
   "./assets/multi-property-foundation.css?v=20261007-growth-ui-r10",
-  "./assets/multi-property-foundation.js?v=20260812-final12-video1"
+  "./assets/multi-property-foundation.js?v=20261007-growth-ui-r10"
 ];
 
 function responseCanBeCached(response) {

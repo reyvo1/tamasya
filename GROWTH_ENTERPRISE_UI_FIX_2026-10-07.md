@@ -17,3 +17,5 @@ Kartu memakai warna Dashboard, pembungkusan angka, kolom responsif, dan styleshe
 33 suite sumber/unit, termasuk regresi baru format Rupiah, tipe paket, kalender, source/session/scope, error HTTP, pembatalan request dan akses Owner. Full aplikasi/database/browser tidak dijalankan lokal sesuai permintaan pengguna. UAT browser GitHub ditambah skenario Growth aktif di Dashboard/reservasi, filter laporan bersih, nominal besar dengan pecahan, tidak ada mutation request dan harga manual tidak berubah. Skenario audit shift dan containment sebelumnya dipertahankan; inventaris browser minimum dinaikkan ke 18 skenario.
 
 Status UAT commit terbaru dicatat pada artefak rilis sesudah Actions selesai; catatan ini tidak menyatakan aplikasi bebas semua bug.
+
+UAT R10 awal: 46/48 pemeriksaan browser lulus di masing-masing PHP 8.4 dan 8.5. Dua kegagalan skenario baru disebabkan tes mencari KPI Dashboard sebelum membuka Dashboard, padahal tab awal aplikasi adalah Kamar. Tes diperbaiki dengan navigasi Dashboard eksplisit; pemeriksaan visibilitas/nominal/geometri tetap utuh. URL cache POS dan multi properti juga disamakan dengan build R10, termasuk precache offline.
