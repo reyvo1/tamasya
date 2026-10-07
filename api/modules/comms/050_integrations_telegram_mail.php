@@ -953,7 +953,7 @@ function tamasyaTelegramParseMoney(string $input): ?float {
     return is_finite($amount)&&$amount<=1000000000000?round($amount,2):null;
 }
 function tamasyaTelegramFormatAmount($amount): string {
-    return rtrim(rtrim(number_format((float)$amount,2,',','.'),'0'),',');
+    return number_format((float)$amount,abs(round((float)$amount,2)-round((float)$amount))<0.001?0:2,',','.');
 }
 
 /** Simulator response data follows the resolved Telegram identity, never the caller role. */

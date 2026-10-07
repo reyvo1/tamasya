@@ -265,7 +265,9 @@ switch ($action) {
             if ($command === 'shift-open') {
                 requireRoles($loggedInStaff, tamasyaShiftOperatorRoles());
                 $id = generateServerId('shift');
-                $opening = max(0,(float)($input['openingCash'] ?? 0));
+                $openingInput=$input['openingCash']??0;
+                if(!is_numeric($openingInput)||!is_finite((float)$openingInput)||(float)$openingInput<0)throw new InvalidArgumentException('Kas awal wajib angka valid dan tidak negatif.');
+                $opening=round((float)$openingInput,2);
                 $companionStaffId=trim((string)($input['companionStaffId']??''));
                 $defaultShiftTime=(int)date('G')>=7 && (int)date('G')<15 ? 'pagi' : ((int)date('G')>=15 && (int)date('G')<23 ? 'siang' : 'malam');
                 $shiftTime=trim((string)($input['shiftTime']??$defaultShiftTime));
@@ -1658,7 +1660,7 @@ Petugas: *".currentStaffLabel($loggedInStaff)."*",false);
             echo json_encode(['success'=>true,'data'=>getRoleScopedOperationsData($pdo,$loggedInStaff)]);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
-            http_response_code(400);
+            if($command==='shift-cash-revise')tamasyaApplyExceptionHttpStatus($e,500);else http_response_code(400);
             echo json_encode(['success'=>false,'error'=>clientExceptionMessage('Operasi gagal', $e)]);
         }
         break;

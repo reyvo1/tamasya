@@ -193,7 +193,7 @@ try:
         actual_text=f'{physical:.2f}'.replace('.',',')
         _,preview=sim_text('r11_physical_'+tag,actual_text,chat=operator_chat)
         state=db('SELECT telegram_state FROM staff WHERE id=?',[operator_id])[0]['telegram_state']
-        check('R11 receptionist can explain discrepancy without manager impersonation '+tag,state=='waiting_for_tutup_shift_notes' and 'keterangan' in preview.get('message',{}).get('text',''),preview.get('message'))
+        check('R11 receptionist can explain discrepancy without manager impersonation '+tag,state=='waiting_for_tutup_shift_notes' and 'keterangan' in preview.get('message',{}).get('text','') and 'Rp -' not in preview.get('message',{}).get('text',''),preview.get('message'))
         sim_cb('r11_no_notes_block_'+tag,'tutup_shift_done:no_notes',chat=operator_chat,message='r11-no-notes-'+tag)
         check('R11 stale no-notes button cannot close a discrepancy '+tag,db('SELECT status FROM shift_sessions WHERE id=?',[sid])[0]['status']=='open')
         before_money=int(db('SELECT COUNT(*) n FROM transactions')[0]['n'])
@@ -213,7 +213,7 @@ try:
             updated_review=db('SELECT * FROM approval_requests WHERE id=?',[review[0]['id']])[0]
             check('R11 Admin web revision updates drawer and same report with audit, preserving transactions',status==200 and rev.get('success') is True and float(revised['actual_cash'])==50000.30 and float(revised['variance'])==0 and float(updated_report['actualPhysicalCash'])==50000.30 and updated_review['status']=='approved' and int(db('SELECT COUNT(*) n FROM transactions')[0]['n'])==before_money,{'revision':rev,'shift':revised,'review':updated_review})
             status,stale=request('operations-center','POST',{'command':'shift-cash-revise','shiftId':sid,'actualCash':47000,'previousActualCash':physical,'reason':'Revisi dari tampilan lama harus ditolak.'},'r11_revise_stale')
-            check('R11 stale Admin revision cannot overwrite newer physical cash',status==409 and float(db('SELECT actual_cash FROM shift_sessions WHERE id=?',[sid])[0]['actual_cash'])==50000.30,stale)
+            check('R11 stale Admin revision cannot overwrite newer physical cash',status==409 and float(db('SELECT actual_cash FROM shift_sessions WHERE id=?',[sid])[0]['actual_cash'])==50000.30,{'httpStatus':status,'body':stale})
         else:
             status,decision=request('operations-center','POST',{'command':'approval-decide','id':review[0]['id'],'decision':'approved','notes':'Selisih lebih dikonfirmasi admin; uang fisik tetap sesuai laporan.'},'r11_review_over')
             check('R11 Admin acknowledges overage without erasing its amount',status==200 and float(db('SELECT variance FROM shift_sessions WHERE id=?',[sid])[0]['variance'])==variance and db('SELECT status FROM approval_requests WHERE id=?',[review[0]['id']])[0]['status']=='approved',decision)

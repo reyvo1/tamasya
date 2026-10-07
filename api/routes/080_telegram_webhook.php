@@ -4543,7 +4543,7 @@ Ketik kas awal berupa angka, misalnya `500000` atau `0`.";
                             if ($variance > 0) {
                                 $varianceText = "LEBIH (+Rp " . tamasyaTelegramFormatAmount($variance) . ")";
                             } else if ($variance < 0) {
-                                $varianceText = "KURANG (Rp " . tamasyaTelegramFormatAmount($variance) . ")";
+                                $varianceText = "KURANG (Rp " . tamasyaTelegramFormatAmount(abs($variance)) . ")";
                             }
 
                             $newCtx=json_encode($context,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
