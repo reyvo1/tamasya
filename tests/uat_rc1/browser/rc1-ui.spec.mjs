@@ -651,7 +651,8 @@ test('Negotiated checkout web form previews PBJT and changes unpaid price withou
   },info.project.name);
   await page.reload();await expect(page.locator('#domain-frontoffice')).toBeVisible();
   await page.locator('#domain-frontoffice').click();await page.locator('[role="menu"] [data-route="rooms"]').click();
-  const guest=page.getByText(fixture.guest,{exact:true}).first();await expect(guest).toBeVisible();await guest.click();
+  await page.getByPlaceholder('Cari kamar...').fill(fixture.number);
+  const room=page.getByRole('button',{name:new RegExp('^'+fixture.number+' Terisi ')});await expect(room).toBeVisible();await room.click();
   await page.locator('#btn-checkout-guest').click();
   await page.getByRole('button',{name:'Tetapkan Harga Nego Sebelum Bayar',exact:true}).click();
   await page.getByLabel('Total tagihan final seluruh booking, termasuk PBJT (Rp)').fill('190000');

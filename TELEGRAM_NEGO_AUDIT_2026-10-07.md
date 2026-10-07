@@ -31,3 +31,7 @@ Status UAT final dicatat bersama paket rilis setelah CI commit final selesai. Pa
 Run `37638255743` menemukan pemanggilan `rc410TableExists()` (helper migrasi yang tidak dimuat pada runtime normal) di guard folio Enterprise. Ini kesalahan kode R12, bukan kesalahan input/UAT. Guard diganti dengan `tamasyaSchemaTableExists()` dari kontrak schema runtime.
 
 Audit lanjutan menemukan perpanjangan Telegram di `booking.extras` dihitung sebagai `extraCharge`. Klasifikasi kini memakai metadata komponen room/extension; hanya layanan sungguhan yang menjadi `extraCharge`. Proyeksi web dan KPI Growth membaca komponen sumber sehingga angka lama yang tersimpan tidak membuat perpanjangan hilang dari pendapatan kamar. Snapshot pembayaran tidak diubah. Broadcast perpanjangan belum bayar dipertahankan; kegagalan broadcast setelah commit tidak dilaporkan sebagai kegagalan menyimpan biaya.
+
+Run `37639881041` meluluskan alur Telegram termasuk harga nego, tetapi smoke test SaaS masih mengharapkan build R11 yang tersisa di skrip shell. Identitas build pemeriksa disamakan dengan R12, tanpa mengurangi pemeriksaan. Endpoint nego juga didaftarkan eksplisit pada batas readiness global sebelum forwarding/outbox, selain guard transaksi di workflow.
+
+UAT browser pertama untuk form nego menggunakan pencarian teks nama tamu persis, sedangkan kartu denah menambahkan ikon di depan nama. Fixture diperbaiki agar memilih tombol kamar berdasarkan nomor dan status terisi; seluruh pemeriksaan nominal, PBJT, pembayaran, dan layout tetap dijalankan.

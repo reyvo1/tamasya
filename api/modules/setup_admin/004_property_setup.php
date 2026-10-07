@@ -413,7 +413,7 @@ function tamasyaPropertyActionRequiresReady(string $action,string $method='GET',
     }
 
     return in_array($action,[
-        'bookings','booking-payments','bookings-status','guest-security-deposits',
+        'bookings','booking-negotiated-price','booking-payments','bookings-status','guest-security-deposits',
         'transaction-booking-action','transaction-allocation-void','transactions',
         'ota-disbursements','historical-backfill-review','reporting-periods','booking-audit-correction',
         'pos-sale-create','pos-sale-void','pos-delivery-update',

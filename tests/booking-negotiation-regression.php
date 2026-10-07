@@ -4,6 +4,7 @@ define('TAMASYA_API_ENTRY',true);
 require dirname(__DIR__).'/api/modules/finance/030_booking_finance.php';
 require dirname(__DIR__).'/api/modules/hr_staff/020_identity_access_audit.php';
 require dirname(__DIR__).'/api/modules/setup_admin/010_schema_contract.php';
+require dirname(__DIR__).'/api/modules/setup_admin/004_property_setup.php';
 $passed=0;
 function checkNego($ok,$label){global $passed;if(!$ok)throw new RuntimeException($label);$passed++;echo "PASS $label\n";}
 function rejectNego(callable $f,$label){try{$f();}catch(InvalidArgumentException|RuntimeException $e){checkNego(true,$label);return;}throw new RuntimeException($label);}
@@ -57,4 +58,6 @@ $db=new NegoRuntimeMetadataFixture(true);
 try{tamasyaBookingNegotiationQuote($db,$active);throw new RuntimeException('Schema metadata error ignored');}catch(PDOException $e){checkNego($db->calls===1,'Runtime metadata failure does not pretend Enterprise tables are absent');}
 $db=new NegoRuntimeMetadataFixture();
 try{tamasyaApplyBookingNegotiatedPrice($db,['id'=>'owner1','role'=>'owner'],'b1',[],'web','op_owner_nego');throw new RuntimeException('Owner mutation accepted');}catch(DomainException $e){checkNego($e->getCode()===403&&$db->calls===0,'Owner price mutation rejected before any database access');}
+checkNego(tamasyaPropertyActionRequiresReady('booking-negotiated-price','POST'),'New price mutation participates in global property readiness before forwarding');
+checkNego(!tamasyaPropertyActionRequiresReady('booking-negotiated-price','GET'),'Price quote remains a read operation');
 echo "$passed checks passed\n";
