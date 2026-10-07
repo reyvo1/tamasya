@@ -13,9 +13,37 @@ if (!in_array((string)($action ?? ''), array (
   8 => 'guest-security-deposits',
   9 => 'operation-receipt-status',
   10 => 'room-transfers',
+  11 => 'booking-negotiated-price',
 ), true)) { return; }
 $routeHandled = true;
 switch ($action) {
+    case 'booking-negotiated-price':
+        requireDesktopTabAccess($loggedInStaff,'rooms',['admin','manager','receptionist']);
+        $method=$_SERVER['REQUEST_METHOD'];$id=trim((string)($input['bookingId']??($_GET['id']??'')));
+        try{
+            if(!in_array(strtolower((string)($loggedInStaff['role']??'')),['admin','manager','receptionist'],true))throw new DomainException('Peran ini tidak berhak menetapkan harga nego.',403);
+            if($method==='GET'){
+                $q=$pdo->prepare('SELECT * FROM bookings WHERE id=? LIMIT 1');$q->execute([$id]);$booking=$q->fetch(PDO::FETCH_ASSOC);
+                if(!$booking)throw new RuntimeException('Booking tidak ditemukan.');
+                $quote=tamasyaBookingNegotiationQuote($pdo,$booking);$preview=null;
+                if(isset($_GET['finalTotal'])){
+                    if(!is_numeric($_GET['finalTotal']))throw new InvalidArgumentException('Harga final tidak valid.');
+                    $plan=tamasyaNegotiatedPricePlan($booking,$quote['components'],$quote['paid'],$quote['amountPaid'],(float)$_GET['finalTotal']);
+                    $preview=array_intersect_key($plan,array_flip(['totalAmount','vatAmount','discountAmount','taxReduction']));
+                }
+                unset($quote['components'],$quote['paid']);
+                echo json_encode(['success'=>true,'quote'=>$quote,'preview'=>$preview]);
+            }elseif($method==='POST'){
+                $result=tamasyaApplyBookingNegotiatedPrice($pdo,$loggedInStaff,$id,$input,'web',(string)($GLOBALS['tamasya_request_operation_id']??''));
+                $b=$result['booking'];
+                $result['booking']=array_intersect_key($b,array_flip(['id','status','totalAmount','vatAmount','vatRate','extras','paymentStatus','amountPaid','balanceDue','version']));
+                foreach(['totalAmount','vatAmount','amountPaid','balanceDue'] as $key)$result['booking'][$key]=(float)$b[$key];
+                $result['booking']['version']=(int)$b['version'];
+                echo json_encode(['success'=>true]+$result);
+            }else{http_response_code(405);echo json_encode(['success'=>false,'error'=>'Method Not Allowed']);}
+        }catch(Throwable $e){http_response_code($e instanceof DomainException&&in_array($e->getCode(),[403,409],true)?$e->getCode():422);echo json_encode(['success'=>false,'error'=>clientExceptionMessage('Harga nego ditolak',$e)]);}
+        break;
+
     case 'hotel-data':
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             http_response_code(405);
@@ -362,6 +390,7 @@ switch ($action) {
                         throw new InvalidArgumentException('Nominal transaksi biaya booking tidak valid.');
                     }
                     $semanticAction=$roomTransfer?'transfer':inferBookingChargeAction($clientTx);
+                    if($semanticAction==='extension'&&($clientTx['priceMode']??'')==='negotiated'&&tamasyaStringLength(trim((string)($clientTx['negotiationReason']??'')))<5)throw new InvalidArgumentException('Alasan harga nego perpanjangan minimal 5 karakter.');
                     $semanticRecordCash=!array_key_exists('recordCash',$clientTx)
                         || !in_array(strtolower(trim((string)$clientTx['recordCash'])),['0','false','no','off',''],true);
                     $semanticDate=validIsoDate((string)($clientTx['date']??''))?(string)$clientTx['date']:date('Y-m-d');
@@ -800,6 +829,7 @@ switch ($action) {
                     'bookingSource'=>$updatedBooking['bookingSource'] ?? null,
                     'status'=>$updatedBooking['status'] ?? null,
                 ];
+                if($clientTx&&$semanticAction==='extension')$auditAfter['extensionPricing']=['priceMode'=>$clientTx['priceMode']??'master','negotiationReason'=>$clientTx['negotiationReason']??null,'gross'=>$semanticAmount,'baseAmount'=>$semanticTax['baseAmount'],'taxAmount'=>$semanticTax['taxAmount']];
                 if($serverTransferFinance!==null){
                     $auditAfter['roomTransferFinance']=[
                         'rateMode'=>$serverTransferFinance['rateMode'],

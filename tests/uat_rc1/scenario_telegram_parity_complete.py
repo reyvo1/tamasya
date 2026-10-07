@@ -22,6 +22,17 @@ def sim_text(name,text,expected=200):
     check(name,s==expected and isinstance(b,dict) and (b.get('success') is not False if expected<300 else b.get('success') is False),{'status':s,'text':(b.get('message') or {}).get('text'),'body':b})
     return s,b
 
+def choose_callback(body,prefix,needle=None):
+    buttons=[button for row in (body.get('message',{}).get('replyMarkup') or body.get('message',{}).get('reply_markup') or {}).get('inline_keyboard',[]) for button in row]
+    for button in buttons:
+        raw=str(button.get('callback_data') or '')
+        if raw.startswith('tcb_'):
+            saved=db('SELECT callback_data FROM telegram_callback_tokens WHERE token=?',[raw])
+            resolved=saved[0]['callback_data'] if saved else ''
+        else: resolved=raw
+        if resolved.startswith(prefix) and (needle is None or resolved.endswith(needle)): return raw
+    raise RuntimeError('Required Telegram payment button missing: '+prefix+' '+str(needle))
+
 # Re-bind the canonical admin to the deterministic simulated Telegram identity.
 admin=db("SELECT id FROM staff WHERE username=? LIMIT 1",[__import__('os').getenv('APP_BOOTSTRAP_ADMIN_USERNAME','admin')])[0]
 db('UPDATE staff SET telegram_chat_id=?,telegram_state=NULL,telegram_context=NULL WHERE id=?',[str(CHAT_ADMIN),admin['id']])
@@ -60,11 +71,20 @@ if len(rooms)>=2:
         before=db('SELECT checkOut,totalAmount,balanceDue,roomNumber FROM bookings WHERE id=?',[booking_id])[0]
         # Extension from Telegram callback uses canonical booking charge workflow.
         extend_mid='efc-extend-'+run
-        sim_cb('telegram_extend_confirm',f"r_extend_confirm:{source['number']}:1:unpaid",message_id=extend_mid)
+        sim_cb('telegram_extend_start',f"r_extend:{source['number']}")
+        _,extend_quote=sim_text('telegram_extend_nights','1')
+        sim_cb('telegram_extend_nego',choose_callback(extend_quote,'r_extend_nego:'))
+        sim_text('telegram_extend_nego_invalid','abc')
+        _,nego_reason=sim_text('telegram_extend_nego_amount','200000')
+        _,nego_quote=sim_text('telegram_extend_nego_reason','Harga perpanjangan disepakati tamu')
+        extend_callback=choose_callback(nego_quote,'r_extend_choice:',':unpaid')
+        sim_cb('telegram_extend_confirm',extend_callback,message_id=extend_mid)
         extended=db('SELECT checkOut,totalAmount,balanceDue,roomNumber,extras FROM bookings WHERE id=?',[booking_id])[0]
         ext_extras=[x for x in (json.loads(extended.get('extras') or '[]') or []) if str(x.get('id','')).startswith('ex_ext_tg_')]
         check('Telegram unpaid extension updates same booking checkout and folio without fabricating cash receipt',extended['checkOut']>before['checkOut'] and float(extended['totalAmount'])>float(before['totalAmount']) and float(extended['balanceDue'])>float(before['balanceDue']) and len(ext_extras)==1 and not db("SELECT id FROM transactions WHERE bookingId=? AND operationId LIKE 'tg_%' AND description LIKE 'Perpanjangan Kamar%'",[booking_id]),{'before':before,'after':extended,'extras':ext_extras})
-        sim_cb('telegram_extend_replay',f"r_extend_confirm:{source['number']}:1:unpaid",message_id=extend_mid)
+        check('Negotiated unpaid extension stores exact gross including PBJT',abs(float(extended['totalAmount'])-float(before['totalAmount'])-200000)<0.01 and ext_extras[0]['paymentStatus']=='unpaid',extended)
+        sim_cb('telegram_extend_legacy_rejected',f"r_extend_confirm:{source['number']}:1:unpaid",message_id='legacy-'+run)
+        sim_cb('telegram_extend_replay',extend_callback,message_id=extend_mid)
         extended_retry=db('SELECT checkOut,totalAmount,extras FROM bookings WHERE id=?',[booking_id])[0]
         ext_retry=[x for x in (json.loads(extended_retry.get('extras') or '[]') or []) if str(x.get('id','')).startswith('ex_ext_tg_')]
         check('Telegram extension callback replay cannot duplicate folio charge',extended_retry['checkOut']==extended['checkOut'] and float(extended_retry['totalAmount'])==float(extended['totalAmount']) and len(ext_retry)==1)
@@ -88,20 +108,16 @@ if len(rooms)>=2:
         qris_id='uat_tg_qris_'+run
         for account_id,kind in [(bank_id,'bank'),(qris_id,'edc_qris')]:
             db("INSERT INTO bank_accounts(id,name,type,accountNumber,isActive) VALUES (?,?,?,?,1)",[account_id,'TG Payment '+kind,kind,'UAT'])
-        def choose_callback(body,prefix,needle=None):
-            buttons=[button for row in (body.get('message',{}).get('replyMarkup') or body.get('message',{}).get('reply_markup') or {}).get('inline_keyboard',[]) for button in row]
-            for button in buttons:
-                raw=str(button.get('callback_data') or '')
-                if raw.startswith('tcb_'):
-                    saved=db('SELECT callback_data FROM telegram_callback_tokens WHERE token=?',[raw])
-                    resolved=saved[0]['callback_data'] if saved else ''
-                else: resolved=raw
-                if resolved.startswith(prefix) and (needle is None or resolved.endswith(needle)): return raw
-            raise RuntimeError('Required Telegram payment button missing: '+prefix+' '+str(needle))
         for method,account_id in [('cash',None),('transfer',bank_id),('qris',qris_id)]:
             old=db('SELECT checkOut,totalAmount FROM bookings WHERE id=?',[booking_id])[0]
             receipts_before=int(db('SELECT COUNT(*) n FROM transactions WHERE bookingId=?',[booking_id])[0]['n'])
-            _,choice=sim_cb('paid_extension_select_'+method,f"r_extend_confirm:{source['number']}:1:paid",message_id='paid-start-'+method+'-'+run)
+            sim_cb('paid_extension_start_'+method,f"r_extend:{source['number']}")
+            _,extend_quote=sim_text('paid_extension_nights_'+method,'1')
+            if method=='qris':
+                sim_cb('paid_extension_nego_start',choose_callback(extend_quote,'r_extend_nego:'))
+                sim_text('paid_extension_nego_amount','180000')
+                _,extend_quote=sim_text('paid_extension_nego_reason','Harga perpanjangan QRIS disepakati')
+            _,choice=sim_cb('paid_extension_select_'+method,choose_callback(extend_quote,'r_extend_choice:',':paid'),message_id='paid-start-'+method+'-'+run)
             draft=json.loads(db('SELECT telegram_context FROM staff WHERE id=?',[admin['id']])[0]['telegram_context'] or '{}')
             check('Selecting paid does not extend or post cash before choosing '+method,db('SELECT checkOut,totalAmount FROM bookings WHERE id=?',[booking_id])[0]==old and int(db('SELECT COUNT(*) n FROM transactions WHERE bookingId=?',[booking_id])[0]['n'])==receipts_before)
             _,selected=sim_cb('paid_extension_method_'+method,choose_callback(choice,'r_charge_method:',':'+method))
@@ -168,6 +184,48 @@ if len(rooms)>=2:
         s,hotel=request('hotel-data','GET')
         projected=next((x for x in (hotel.get('bookings') or []) if x.get('id')==booking_id),None) if isinstance(hotel,dict) else None
         check('Web hotel-data immediately sees Telegram extension/service/transfer state',s==200 and projected is not None and projected.get('roomNumber')==target['number'] and float(projected.get('totalAmount') or 0)==float(db('SELECT totalAmount FROM bookings WHERE id=?',[booking_id])[0]['totalAmount']),{'projected':projected})
+
+# Negotiate at checkout after an unpaid extension; web and Telegram share one canonical price.
+if len(rooms)>=2 and booking_id:
+    old=db('SELECT * FROM bookings WHERE id=?',[booking_id])[0]
+    receipts_before=db('SELECT id,amount,baseAmount,taxAmount,bankAccountId FROM transactions WHERE bookingId=? ORDER BY id',[booking_id])
+    paid_extras_before=[x for x in json.loads(old.get('extras') or '[]') if x.get('paymentStatus')=='paid']
+    status,web_quote=request('booking-negotiated-price&id='+booking_id)
+    check('Web negotiated checkout reads canonical unpaid room balance',status==200 and web_quote.get('success') is True and float(web_quote['quote']['roomBalance'])>0,web_quote)
+    quote=web_quote['quote']; final=float(old['totalAmount'])-5000
+    status,preview=request('booking-negotiated-price&id='+booking_id+'&finalTotal='+str(final))
+    check('Web negotiated price preview shows PBJT and exact discount',status==200 and float(preview['preview']['discountAmount'])==5000,preview)
+    status,denied=request('booking-negotiated-price','POST',{'bookingId':booking_id,'finalTotal':final,'reason':'x','quoteToken':quote['quoteToken']},'efc_nego_short_reason_'+run)
+    check('Negotiation requires explanation',status==422,denied)
+    status,denied=request('booking-negotiated-price','POST',{'bookingId':booking_id,'finalTotal':float(quote['minimumTotal'])-1,'reason':'Below paid and services floor','quoteToken':quote['quoteToken']},'efc_nego_floor_'+run)
+    check('Negotiation protects receipts and services',status==422,denied)
+    status,changed=request('booking-negotiated-price','POST',{'bookingId':booking_id,'finalTotal':final,'reason':'Kesepakatan harga di web sebelum checkout','quoteToken':quote['quoteToken']},'efc_nego_web_'+run)
+    check('Web negotiated checkout updates total without receipt',status==200 and changed.get('success') is True and abs(float(changed['booking']['totalAmount'])-final)<0.01,changed)
+    status,stale=request('booking-negotiated-price','POST',{'bookingId':booking_id,'finalTotal':final-1000,'reason':'Stale price must not apply','quoteToken':quote['quoteToken']},'efc_nego_stale_'+run)
+    check('Old web quote cannot overwrite new price',status==409,stale)
+    _,checkout=sim_cb('nego_checkout_start',f"r_checkout:{target['number']}")
+    if 'STATUS KUNCI' in checkout.get('message',{}).get('text',''):
+        _,checkout=sim_cb('nego_checkout_key_returned',f"r_checkout_key:{target['number']}:returned")
+    sim_cb('nego_checkout_choose',choose_callback(checkout,'r_checkout_nego:'))
+    sim_text('nego_checkout_final',str(int(final-10000)))
+    _,confirmation=sim_text('nego_checkout_reason','Harga akhir disepakati saat tamu checkout')
+    save=choose_callback(confirmation,'r_checkout_nego_save:')
+    _,checkout_payment=sim_cb('nego_checkout_save',save)
+    after=db('SELECT * FROM bookings WHERE id=?',[booking_id])[0]
+    check('Telegram price change is visible on web total and outstanding',abs(float(after['totalAmount'])-(final-10000))<0.01 and float(after['balanceDue'])>0,after)
+    check('Price changes do not modify old receipts',db('SELECT id,amount,baseAmount,taxAmount,bankAccountId FROM transactions WHERE bookingId=? ORDER BY id',[booking_id])==receipts_before)
+    check('Price changes preserve paid extension and service snapshots',[x for x in json.loads(after.get('extras') or '[]') if x.get('paymentStatus')=='paid']==paid_extras_before)
+    sim_cb('nego_checkout_save_replay',save)
+    check('Repeated negotiation confirmation cannot apply a second discount',db('SELECT totalAmount FROM bookings WHERE id=?',[booking_id])[0]['totalAmount']==after['totalAmount'])
+    # Cancellation leaves the saved price intact; reopening uses the current ledger.
+    sim_cb('nego_checkout_cancel_after_price','cancel_booking_process')
+    _,checkout_payment=sim_cb('nego_checkout_restart',f"r_checkout:{target['number']}")
+    if 'STATUS KUNCI' in checkout_payment.get('message',{}).get('text',''):
+        _,checkout_payment=sim_cb('nego_checkout_restart_key',f"r_checkout_key:{target['number']}:returned")
+    sim_cb('nego_checkout_pay',choose_callback(checkout_payment,'r_checkout_pay:',':cash:-'))
+    final_booking=db('SELECT status,totalAmount,amountPaid,balanceDue FROM bookings WHERE id=?',[booking_id])[0]
+    check('Negotiated checkout settles exactly once and balances ledger',final_booking['status']=='completed' and float(final_booking['balanceDue'])==0 and abs(float(final_booking['amountPaid'])-float(final_booking['totalAmount']))<0.01,final_booking)
+    check('Negotiated checkout creates exactly one new receipt',len(db('SELECT id FROM transactions WHERE bookingId=?',[booking_id]))==len(receipts_before)+1)
 
 check('Telegram parity suite leaves journals balanced',not db('SELECT journal_entry_id FROM journal_lines GROUP BY journal_entry_id HAVING ABS(SUM(debit)-SUM(credit))>0.001'))
 print('ENTERPRISE-FULL-TELEGRAM-PARITY',sum(x['pass'] for x in results),'/',len(results))

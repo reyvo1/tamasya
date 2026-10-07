@@ -1,3 +1,7 @@
+# R12 — Harga nego web/Telegram
+
+Lihat `TELEGRAM_NEGO_AUDIT_2026-10-07.md`. Build `20261007-telegram-nego-r12`. Status CI final mengikuti commit/paket rilis, tidak disimpulkan dari audit sumber.
+
 > Kandidat terbaru R11: `20261007-telegram-shift-r11`. Lihat `TELEGRAM_SHIFT_AUDIT_2026-10-07.md` untuk deklarasi selisih Telegram, review dan revisi kas fisik Admin di web. Perbaikan R2–R10 tetap disertakan.
 
 > Kandidat terbaru: `20261007-growth-ui-r10`. Lihat `GROWTH_ENTERPRISE_UI_FIX_2026-10-07.md` untuk integrasi native Growth, filter laporan dan format Rupiah. Semua perbaikan R2–R9 tetap disertakan.

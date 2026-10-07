@@ -1871,7 +1871,7 @@ function prepareTelegramCheckoutFinancialStep(PDO $pdo, array $staff, array $boo
     if($remaining>0){
         return ['text'=>$summary.'Pilih metode pelunasan.'.($vacancyReportId?' Bila tamu sudah benar-benar pergi, checkout operasional dapat melepas kamar dan mencatat sisa sebagai piutang.':' Checkout diselesaikan setelah ledger server seimbang.'),'markup'=>prepareTelegramCheckoutPaymentChoice($pdo,$staff,$booking,$remaining,$keyDisposition,$keyReason,$vacancyReportId),'alert'=>'Pilih pembayaran'];
     }
-    $ctx=json_encode(['flow'=>'checkout_ready','bookingId'=>(string)$booking['id'],'roomNumber'=>$roomNumber,'keyDisposition'=>$keyDisposition,'keyReason'=>$keyReason,'vacancyReportId'=>$vacancyReportId],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+    $ctx=json_encode(['expectedTotalAmount'=>$total,'expectedRemaining'=>0,'expiresAt'=>time()+900,'flow'=>'checkout_ready','bookingId'=>(string)$booking['id'],'roomNumber'=>$roomNumber,'keyDisposition'=>$keyDisposition,'keyReason'=>$keyReason,'vacancyReportId'=>$vacancyReportId],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
     $pdo->prepare("UPDATE staff SET telegram_state='waiting_for_checkout_confirmation',telegram_context=? WHERE id=?")->execute([$ctx,(string)$staff['id']]);
     return ['text'=>$summary.'Ledger sudah lunas. Lanjutkan checkout?','markup'=>['inline_keyboard'=>[[['text'=>'✅ Ya, Proses Check-Out','callback_data'=>'r_checkout_confirm:'.$roomNumber]],[['text'=>'❌ Batalkan','callback_data'=>'cancel_booking_process']]]],'alert'=>'Konfirmasi checkout'];
 }
@@ -1902,8 +1902,12 @@ function prepareTelegramCheckoutPaymentChoice(PDO $pdo, array $staff, array $boo
     if(trim((string)$vacancyReportId)!==''){
         $buttons[] = [["text" => "🚪 Checkout operasional · catat piutang", "callback_data" => "r_checkout_defer:{$roomNumber}"]];
     }
+    $negotiationNonce=bin2hex(random_bytes(10));
+    $buttons[] = [['text'=>'✍️ Tetapkan Harga Nego Sebelum Bayar','callback_data'=>'r_checkout_nego:'.$roomNumber.':'.$negotiationNonce]];
     $buttons[] = [["text" => "❌ Batalkan", "callback_data" => "cancel_booking_process"]];
     $context = json_encode([
+        'negotiationNonce'=>$negotiationNonce,'expiresAt'=>time()+900,
+        'expectedTotalAmount'=>round((float)$booking['totalAmount'],2),'expectedRemaining'=>round($remaining,2),
         'flow'=>'checkout_payment',
         'bookingId'=>(string)$booking['id'],
         'roomNumber'=>$roomNumber,
@@ -1918,7 +1922,7 @@ function prepareTelegramCheckoutPaymentChoice(PDO $pdo, array $staff, array $boo
 }
 
 /** Source line 3748: finalizeTelegramCheckout */
-function finalizeTelegramCheckout(PDO $pdo, array $staff, string $roomNumber, string $operationId, ?string $paymentMethod = null, ?string $bankAccountId = null, string $keyDisposition = 'unknown', string $keyReason = '', ?string $vacancyReportId = null, string $financialDisposition = 'settle_now', string $financialClosureReason = '', ?array $splitPayment = null): array {
+function finalizeTelegramCheckout(PDO $pdo, array $staff, string $roomNumber, string $operationId, ?string $paymentMethod = null, ?string $bankAccountId = null, string $keyDisposition = 'unknown', string $keyReason = '', ?string $vacancyReportId = null, string $financialDisposition = 'settle_now', string $financialClosureReason = '', ?array $splitPayment = null, array $expectedQuote = []): array {
     tamasyaRequirePropertyReadyForLiveMutation($pdo,'checkout live via Telegram');
     if (empty($staff['id'])) throw new InvalidArgumentException('Identitas staf Telegram tidak valid.');
     $roomNumber = trim($roomNumber);
@@ -1950,6 +1954,13 @@ function finalizeTelegramCheckout(PDO $pdo, array $staff, string $roomNumber, st
             throw new RuntimeException('Penerimaan booking melebihi tagihan; checkout dihentikan untuk mencegah kas ganda.');
         }
         $remaining = max(0.0, round($total - $ledger['net'], 2));
+        if($expectedQuote){
+            if((string)($expectedQuote['bookingId']??'')!==(string)$booking['id']
+                || !isset($expectedQuote['expectedTotalAmount'],$expectedQuote['expectedRemaining'])
+                || abs($total-(float)$expectedQuote['expectedTotalAmount'])>0.01
+                || abs($remaining-(float)$expectedQuote['expectedRemaining'])>0.01
+                || (int)($expectedQuote['expiresAt']??0)<time())throw new RuntimeException('Tagihan/pembayaran berubah atau pilihan checkout kedaluwarsa. Buka kembali checkout.');
+        }
         $financialDisposition=strtolower(trim($financialDisposition));
         if(!in_array($financialDisposition,['settle_now','defer'],true))throw new InvalidArgumentException('Pilihan penutupan keuangan Telegram tidak valid.');
         $deferFinancialClosure=$financialDisposition==='defer'&&$remaining>0.01;

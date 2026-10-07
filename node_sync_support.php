@@ -312,7 +312,7 @@ function tamasyaNodeSyncStatus(PDO $pdo): array {
 function tamasyaNodeSyncAllowedAction(string $action, array $input, string $method): bool {
     if (!in_array(strtoupper($method), ['POST','PUT','PATCH','DELETE'], true)) return false;
     $allowed = [
-        'bookings','rooms','room-transfers','booking-payments','bookings-status','guest-security-deposits','transaction-booking-action',
+        'bookings','rooms','room-transfers','booking-negotiated-price','booking-payments','bookings-status','guest-security-deposits','transaction-booking-action',
         'ota-disbursements','booking-audit-correction','transactions','sync','attendance',
         'salary-slips','employee-self-service','staff-savings','inventory','inventory-maintenance','operations-center',
         'pos-category-save','pos-product-save','pos-stock-adjust','pos-sale-create','pos-sale-void',

@@ -1205,6 +1205,7 @@ if ($loggedInStaff) {
         'room-transfers'=>['rooms'],
         'booking-payments'=>['rooms','finance'],
         'bookings-status'=>['rooms'],
+        'booking-negotiated-price'=>['rooms'],
         'guest-security-deposits'=>['rooms','finance'],
         'transaction-booking-action'=>['rooms','finance'],
         'transaction-allocation-void'=>['finance'],

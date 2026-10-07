@@ -960,3 +960,45 @@ function tamasyaTelegramFormatAmount($amount): string {
 function tamasyaTelegramSimulationHotelData($pdo, ?array $staff): ?array {
     return $staff ? getRoleScopedHotelData($pdo, $staff) : null;
 }
+
+function tamasyaTelegramExtensionQuote(PDO $pdo,array $actor,array $booking,array $room,int $nights,string $operationId): array {
+    tamasyaTelegramChargeAssertRole($actor);
+    if($nights<1||$nights>3650)throw new InvalidArgumentException('Jumlah malam perpanjangan harus 1 sampai 3650.');
+    $rate=resolveConfiguredTaxRate($pdo,(string)($booking['bookingSource']??'Direct'),'extension',null,date('Y-m-d'));
+    $base=round((float)$room['price']*$nights,2);
+    $ctx=['flow'=>'extension_quote','nonce'=>substr(hash('sha256',$actor['id'].'|'.$operationId),0,24),'expiresAt'=>time()+900,
+        'bookingId'=>(string)$booking['id'],'roomNumber'=>(string)$booking['roomNumber'],'nights'=>$nights,
+        'expectedCheckOut'=>(string)$booking['checkOut'],'expectedTotalAmount'=>round((float)$booking['totalAmount'],2),'expectedBookingVersion'=>(int)($booking['version']??0),
+        'quotedMasterBase'=>$base,'quotedBaseAmount'=>$base,'quotedTaxRate'=>$rate,'amount'=>round($base+round($base*$rate/100,2),2),'priceMode'=>'master'];
+    return tamasyaTelegramExtensionRender($pdo,$actor,$ctx);
+}
+function tamasyaTelegramExtensionRender(PDO $pdo,array $actor,array $ctx): array {
+    $pdo->prepare("UPDATE staff SET telegram_state='waiting_for_extend_payment',telegram_context=? WHERE id=?")
+        ->execute([json_encode($ctx,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),(string)$actor['id']]);
+    return ['text'=>"⏳ *KONFIRMASI PERPANJANGAN*\n\nKamar: *".$ctx['roomNumber']."*\nTambahan: *".$ctx['nights']." malam*\nHarga: *".($ctx['priceMode']==='negotiated'?'NEGO':'Tarif master')."*\nTotal tambahan termasuk PBJT: *Rp ".tamasyaTelegramFormatAmount($ctx['amount'])."*\nPBJT: ".$ctx['quotedTaxRate']."%\n\nPilih harga nego bila berbeda dari tarif master. Belum bayar dicatat sebagai tagihan, bukan penerimaan uang.",
+        'markup'=>['inline_keyboard'=>[
+            [['text'=>'✍️ Harga Nego (termasuk PBJT)','callback_data'=>'r_extend_nego:'.$ctx['nonce']]],
+            [['text'=>'🟢 Lunas','callback_data'=>'r_extend_choice:'.$ctx['nonce'].':paid']],
+            [['text'=>'🔴 Belum Bayar','callback_data'=>'r_extend_choice:'.$ctx['nonce'].':unpaid']],
+            [['text'=>'❌ Batalkan','callback_data'=>'cancel_booking_process']]
+        ]]];
+}
+function tamasyaTelegramExtensionContext(array $actor,string $nonce,array $states=['waiting_for_extend_payment']): array {
+    tamasyaTelegramChargeAssertRole($actor);
+    $ctx=json_decode((string)($actor['telegram_context']??''),true);
+    if(!in_array($actor['telegram_state']??'',$states,true)||!is_array($ctx)||($ctx['flow']??'')!=='extension_quote'||!hash_equals((string)($ctx['nonce']??''),$nonce)||(int)($ctx['expiresAt']??0)<time())throw new RuntimeException('Konfirmasi perpanjangan kedaluwarsa. Mulai lagi dari menu.');
+    return $ctx;
+}
+function tamasyaTelegramExtensionSubmit(PDO $pdo,array $actor,array $ctx,string $paymentStatus,string $operationId): array {
+    if(!in_array($paymentStatus,['paid','unpaid'],true))throw new InvalidArgumentException('Status pembayaran tidak valid.');
+    $q=$pdo->prepare("SELECT * FROM bookings WHERE id=? AND status='active' LIMIT 1");$q->execute([$ctx['bookingId']]);$booking=$q->fetch(PDO::FETCH_ASSOC);
+    if(!$booking)throw new RuntimeException('Booking aktif tidak ditemukan.');
+    if((string)$booking['checkOut']!==$ctx['expectedCheckOut']||abs((float)$booking['totalAmount']-$ctx['expectedTotalAmount'])>0.01||(int)($booking['version']??0)!==(int)$ctx['expectedBookingVersion'])throw new RuntimeException('Booking berubah sejak konfirmasi. Buka ulang perpanjangan.');
+    $payload=array_intersect_key($ctx,array_flip(['bookingId','roomNumber','nights','amount','expectedCheckOut','expectedTotalAmount','expectedBookingVersion','quotedMasterBase','quotedBaseAmount','quotedTaxRate','priceMode','negotiationReason']));
+    $payload['action']='extension';$payload['paymentStatus']=$paymentStatus;
+    if($paymentStatus==='paid')return tamasyaTelegramChargeBegin($pdo,$actor,$booking,$payload,$operationId);
+    $result=applyCanonicalTelegramBookingChargeWorkflow($pdo,$actor,$payload,telegramScopedOperationId($operationId,'extension-quote',$payload));
+    $pdo->prepare("UPDATE staff SET telegram_state=NULL,telegram_context=NULL WHERE id=? AND telegram_context=?")
+        ->execute([$actor['id'],$actor['telegram_context']]);
+    return ['text'=>"✅ *PERPANJANGAN BERHASIL · BELUM BAYAR*\n\nKamar: ".$ctx['roomNumber']."\nCheckout baru: ".$result['newCheckOut']."\nTambahan tagihan termasuk PBJT: Rp ".tamasyaTelegramFormatAmount($ctx['amount'])."\nPembayaran dilakukan nanti melalui Panjar atau Checkout.",'markup'=>['inline_keyboard'=>[[['text'=>'🏠 Menu Utama','callback_data'=>'main_menu']]]]];
+}

@@ -3,5 +3,5 @@
  * React DOM from an observer. TamasyaPosBusinessDatePolicy is used by the widget.
  */
 (function(){'use strict';if(window.__TAMASYA_GROWTH_LINK_ADDON__)return;window.__TAMASYA_GROWTH_LINK_ADDON__=true;
-window.TamasyaGrowthLinkAddon=Object.freeze({version:'20261007-telegram-shift-r11',rendering:'react-owned'});
+window.TamasyaGrowthLinkAddon=Object.freeze({version:'20261007-telegram-nego-r12',rendering:'react-owned'});
 })();

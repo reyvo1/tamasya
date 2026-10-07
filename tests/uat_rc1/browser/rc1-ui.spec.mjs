@@ -490,7 +490,7 @@ test('Fresh service worker precaches the exact React module for offline import',
     // Memo does not import the PMS React bundle, so the vendor cannot be warmed
     // accidentally before this check of the newly installed precache.
     await page.goto(BASE+'/internal-memo.html');
-    const vendor='assets/chunks/vendor-react.js?v=20261007-telegram-shift-r11';
+    const vendor='assets/chunks/vendor-react.js?v=20261007-telegram-nego-r12';
     const cached=await page.evaluate(async vendor=>{
       await navigator.serviceWorker.register('./sw.js');await navigator.serviceWorker.ready;
       const cacheKeys=await caches.keys();
@@ -631,4 +631,42 @@ test('Activated Growth stays in native Dashboard and reservation views with exac
  await form.getByLabel('Tanggal check-out reservasi',{exact:true}).fill('2026-02-01');await expect.poll(()=>quotes.at(-1)?.lengthOfStay).toBe('4');await expect(price).toHaveValue('450000');
  await expectNoPageHorizontalOverflow(page);expect(errors).toEqual([]);expect(writes).toEqual([]);
  writeEvidence('growth-native-widgets',info,{pass:true,currency:'Rp 4.640.000,30',kpiNormalFlow:true,reportsClean:true,quote:quotes.at(-1),priceUnchanged:true,writes:0});
+});
+
+test('Negotiated checkout web form previews PBJT and changes unpaid price without receiving money',async({page},info)=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('/index.html');await expect(page.locator('#tab-dashboard')).toBeVisible();
+  await ensureBrowserOpenShift(page);
+  const fixture=await page.evaluate(async project=>{
+    async function api(action,method='GET',body=null){
+      const response=await fetch('./api.php?action='+action,{method,headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+      const data=await response.json();if(response.status!==200||data.success===false)throw new Error(action+': '+JSON.stringify(data));return data;
+    }
+    const hotel=await api('hotel-data'),ping=await api('ping'),today=String(ping.timestamp).slice(0,10);
+    const end=new Date(today+'T12:00:00Z');end.setUTCDate(end.getUTCDate()+1);
+    const number=String(8800000+Math.floor(Math.random()*100000)),guest='Browser Nego '+project+' '+Date.now();
+    await api('rooms','POST',{number,type:hotel.rooms[0].type,price:200000,floor:1});
+    const booking=await api('bookings','POST',{guestName:guest,roomNumber:number,checkIn:today,checkOut:end.toISOString().slice(0,10),totalAmount:220000,paymentStatus:'unpaid',bookingSource:'Direct',lifecycleIntent:'check_in_now',broadcast:false});
+    return {id:booking.bookingId,guest,number};
+  },info.project.name);
+  await page.reload();await expect(page.locator('#domain-frontoffice')).toBeVisible();
+  await page.locator('#domain-frontoffice').click();await page.locator('[role="menu"] [data-route="rooms"]').click();
+  const guest=page.getByText(fixture.guest,{exact:true}).first();await expect(guest).toBeVisible();await guest.click();
+  await page.locator('#btn-checkout-guest').click();
+  await page.getByRole('button',{name:'Tetapkan Harga Nego Sebelum Bayar',exact:true}).click();
+  await page.getByLabel('Total tagihan final seluruh booking, termasuk PBJT (Rp)').fill('190000');
+  await expect(page.getByRole('button',{name:'Periksa Harga Final',exact:true})).toBeDisabled();
+  await page.getByLabel('Alasan / kesepakatan harga nego').fill('Harga akhir disepakati dengan tamu di web');
+  await page.getByRole('button',{name:'Periksa Harga Final',exact:true}).click();
+  await expect(page.getByText(/Potongan Rp 30\.000 · PBJT final/)).toBeVisible();
+  const saved=page.waitForResponse(r=>r.url().includes('action=booking-negotiated-price')&&r.request().method()==='POST');
+  await page.getByRole('button',{name:'Konfirmasi & Simpan Harga Nego',exact:true}).click();
+  const response=await saved;expect(response.status()).toBe(200);const result=await response.json();
+  expect(result.booking.totalAmount).toBe(190000);expect(result.booking.amountPaid).toBe(0);expect(result.booking.balanceDue).toBe(190000);
+  await expect(page.getByText('Penyelesaian Pembayaran & Check-Out',{exact:true})).toBeVisible();
+  await expect(page.getByText('Total Tagihan Aktual Durasi Terbuka *',{exact:true})).toHaveCount(0);
+  await expectNoPageHorizontalOverflow(page);expect(errors).toEqual([]);
+  await page.screenshot({path:path.join(LOGDIR,`browser-negotiated-checkout-${info.project.name}.png`),fullPage:true});
+  writeEvidence('negotiated-checkout',info,{fixture,result,errors});
+  await page.evaluate(async id=>{const r=await fetch('./api.php?action=bookings-status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,status:'cancelled'})});const b=await r.json();if(r.status!==200||b.success!==true)throw new Error(JSON.stringify(b));},fixture.id);
 });
