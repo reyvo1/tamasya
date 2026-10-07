@@ -19,6 +19,13 @@ const context={window,Intl,Number,URL,Date,AbortController,document:{baseURI:'ht
 let source=read('assets/chunks/growth-widgets.js').replace(/import\s*\{f,t\}\s*from\s*['"][^'"]+['"];?/,'').replace(/export\s+/g,'');
 vm.runInNewContext(source+';this.api={tamasyaGrowthPlansForRoom,tamasyaGrowthStayNights,tamasyaGrowthBookingUrl,tamasyaGrowthRead,useGrowthRead,TamasyaGrowthKpiPanel,TamasyaGrowthRateSuggestion,TamasyaGrowthBookingLinks};',context);
 const api=context.api;
+await check('Dashboard KPI refreshes each minute and on focus, with timers cleaned on exit',()=>{
+ let tick,listener,cleared=false;window.TamasyaPosBusinessDatePolicy={dateAt:()=> '2026-01-28'};
+ window.addEventListener=(event,fn)=>{assert.equal(event,'focus');listener=fn;};
+ window.removeEventListener=(event,fn)=>{assert.equal(fn,listener);listener=null;};
+ context.setInterval=(fn,delay)=>{assert.equal(delay,60000);tick=fn;return 7;};context.clearInterval=id=>{assert.equal(id,7);cleared=true;};
+ effects=[];states=[];api.TamasyaGrowthKpiPanel();const cleanup=effects[0]();tick();assert.equal(states[0],'2026-01-28');assert.equal(states[1](3),4);listener();assert.equal(states.length,4);cleanup();assert.equal(listener,null);assert.equal(cleared,true);effects=[];states=[];
+});
 await check('Rate selection never falls back to an unrelated room type',()=>{
  const plans=[{id:'d',active:1,room_type:'Deluxe'},{id:'s',active:1,room_type:'Standard'},{id:'all',active:1,room_type:''},{id:'inactive',active:0,room_type:'Standard'}];
  assert.deepEqual(Array.from(api.tamasyaGrowthPlansForRoom(plans,'standard'),p=>p.id),['s']);
