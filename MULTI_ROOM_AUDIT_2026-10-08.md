@@ -4,7 +4,7 @@
 
 Fondasi Growth sudah mempunyai `growth_group_reservations` dan `growth_group_booking_links`, tetapi pembuatan parent dan penautan child terpisah, terbatas pada Admin/Manager, dan berada pada menu Growth. Pembuatan parent belum menjalankan workflow booking/check-in per kamar. Karena itu menu Growth yang terlihat sebelumnya belum sama dengan reservasi banyak kamar sekali submit oleh resepsionis.
 
-R14 menggunakan tabel tersebut dan tetap **1 booking = 1 kamar**. Entry operasional berada di Denah Kamar dan Reservasi: **Reservasi Beberapa Kamar**, **Check-in Beberapa Kamar**, dan **Daftar Grup**. Tidak diperlukan migrasi SQL baru. Kontak/catatan parent disimpan sebagai metadata berformat `multi-room-v1` di kolom existing `master_notes`; grup lama tetap dibaca dan dikelola melalui workflow lama.
+R14 menggunakan tabel tersebut dan tetap **1 booking = 1 kamar**. Entry operasional berada di halaman Denah Kamar, berdampingan dengan workflow reservasi: **Reservasi Beberapa Kamar**, **Check-in Beberapa Kamar**, dan **Daftar Grup**. Tidak diperlukan migrasi SQL baru. Kontak/catatan parent disimpan sebagai metadata berformat `multi-room-v1` di kolom existing `master_notes`; grup lama tetap dibaca dan dikelola melalui workflow lama.
 
 ## Hubungan engine aktual
 
@@ -38,7 +38,7 @@ Owner dapat membaca daftar/detail tetapi tidak membuat, membayar, mengedit, mele
 
 ## Responsivitas
 
-Modal memakai viewport portal di atas header/nav, scroll badan modal, header/tutup tetap tersedia, grid responsif, angka dapat membungkus, dan tabel kamar mempunyai scroll horizontal lokal. Keyboard Escape/focus kembali dan focus trap tersedia. UI browser desktop, tablet 768 px dan mobile 390 px masuk UAT GitHub; bukti screenshot ada pada artifact UAT.
+Modal memakai viewport portal di atas header/nav, scroll badan modal, header/tutup tetap tersedia, grid responsif, angka dapat membungkus, dan tabel kamar mempunyai scroll horizontal lokal. Keyboard Escape/focus kembali dan focus trap tersedia. Skenario browser desktop, tablet 768 px dan mobile 390 px ditambahkan ke UAT GitHub. Belum ada bukti screenshot R14: job GitHub belum mulai karena billing/spending limit akun.
 
 ## Audit backup 8 Oktober
 
@@ -96,3 +96,9 @@ Retention existing pada maintenance cron tetap 30 hari untuk body dan 120 hari u
 | 28 | Receipt storage dry-run + exact replay | multi-room + unit |
 
 Unit/source boleh berjalan lokal. Full MySQL, browser, Telegram simulator, hybrid dua node dan HQ hanya berjalan di GitHub CI dengan DB disposable. Semua suite lama tetap disertakan, PHP source matrix 8.2/8.3/8.4/8.5 dan full DB/UI matrix 8.4/8.5. Status PASS tidak disimpulkan hanya dari lint.
+
+## Hasil aktual dan batas validasi
+
+38 suite source/unit lokal lulus pada PHP 8.5.4 dan Node 22.23.3; termasuk 1.529 assertion unit multi-kamar. Pemeriksaan graph ES module berhasil menghubungkan delapan dependency nyata tanpa menjalankan aplikasi; pemeriksaan ini menemukan dan memperbaiki impor React yang salah pada chunk baru. Tanggal pembayaran dipertahankan selama draft/retry, termasuk bila melewati tengah malam hotel.
+
+GitHub run `37741752127` dan `37742395829` gagal sebelum step pertama; anotasi menyatakan pembayaran akun gagal atau spending limit perlu ditambah. Full database, browser, Telegram end-to-end dan hybrid R14 **belum dieksekusi**. Status ini adalah hambatan infrastruktur, bukan hasil FAIL/PASS pengujian kode. Paket R14 adalah **kandidat**, belum final produksi. UAT lokal penuh tidak dijalankan karena instruksi sebelumnya melarang simulasi lokal; pilihan pengaktifan Actions/izin DB sementara sudah ditanyakan.

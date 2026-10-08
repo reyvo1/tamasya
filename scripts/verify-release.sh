@@ -29,6 +29,7 @@ node tests/finance-cash-tax-regression.mjs
 php tests/booking-negotiation-regression.php
 php tests/growth-kpi-regression.php
 php tests/multi-room-regression.php
+node --experimental-vm-modules tests/multi-room-ui-regression.mjs
 php tests/telegram-charge-payment-regression.php
 php tests/telegram-shift-regression.php
 php tests/finance-regression.php
@@ -52,4 +53,4 @@ python3 tests/prd-schema-authority-regression.py
 node tests/prd-pos-business-date-regression.mjs
 php tests/device-contract-regression.php
 php tests/database-tls-regression.php
-printf "All source checks and 37 regression suites passed.\n"
+printf "All source checks and 38 regression suites passed.\n"
