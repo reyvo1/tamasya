@@ -663,7 +663,7 @@
   }
 
   function itemValue(item, snake, camel, fallback = '') { return item[snake] ?? item[camel] ?? fallback; }
-  function compactMoney(value) { return window.TamasyaCurrencyDisplay.formatNumber(Number(value || 0)); }
+  function compactMoney(value) { return window.TamasyaCurrencyDisplay.formatNumberExact(Number(value || 0)); }
   function receiptDocument(sale, items, type, copyLabel, copyIndex = 1, copyTotal = 1) {
     const dateText = new Date(sale.createdAt).toLocaleString('id-ID');
     const roomHeader = sale.roomNumber ? `<div class="room-box"><strong>KAMAR ${esc(sale.roomNumber)}</strong><span>${esc(sale.guestName || 'Tamu')}</span><small>Booking: ${esc(sale.bookingId || '—')}</small></div>` : '';

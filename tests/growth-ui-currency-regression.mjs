@@ -13,6 +13,11 @@ await check('Rupiah UI rounds whole rupiah without changing the source amount; e
  assert.equal(money.formatRupiahExact(4640000.3),'Rp 4.640.000,30');assert.equal(money.formatRupiahExact(.3),'Rp 0,30');assert.equal(money.formatRupiah(-.3),'Rp 0');
  const row={amount:4640000.3};money.formatRupiah(row.amount);assert.equal(row.amount,4640000.3);
 });
+await check('Printed booking and POS receipts retain exact cents while summary UI is rounded',()=>{
+ const booking=read('assets/chunks/booking-receipt.js').match(/^const tamasyaMoney=[^;]+;/m)[0];
+ const ctx={window};vm.runInNewContext(booking+';this.printMoney=tamasyaMoney;',ctx);assert.equal(ctx.printMoney(250000.3),'250.000,30');assert.equal(ctx.printMoney(.01),'0,01');
+ const pos=read('assets/pos-minibar.js').match(/function compactMoney\(value\) \{[^}]+\}/)[0];vm.runInNewContext(pos+';this.posMoney=compactMoney;',ctx);assert.equal(ctx.posMoney(250000.3),'250.000,30');assert.equal(ctx.posMoney(.01),'0,01');assert.equal(money.formatRupiah(250000.3),'Rp 250.000');
+});
 const storage=new Map([['hotel_logged_in','true'],['hotel_staff_role','owner'],['hotel_session_token','session'],['hotel_offline_hotel_scope','hotel-a']]);
 let response={ok:true,body:{success:true,data:{rate:250000.3}}},calls=[],effects=[],scheduled=[],states=[];
 const f={useState:init=>[typeof init==='function'?init():init,state=>states.push(state)],useEffect:effect=>effects.push(effect)};

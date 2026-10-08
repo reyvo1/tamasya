@@ -1,4 +1,4 @@
-const tamasyaMoney=window.TamasyaCurrencyDisplay.formatNumber;
+const tamasyaMoney=window.TamasyaCurrencyDisplay.formatNumberExact;
 import {TamasyaViewportLayer} from "./viewport-layer.js?v=20261008-r15";
 /*! TAMASYA split2 chunk: original FIX28R5 function body with safe mutable-cache reset bridge for Ile. */
 import {Kv,f,t,un} from "../app-core.js?v=20261008-r15";
