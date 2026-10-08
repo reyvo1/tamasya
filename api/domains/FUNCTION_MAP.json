@@ -311,6 +311,7 @@
  "tamasyaMultiRoomSplitCents": "043_multi_room_reservations.php",
  "tamasyaMultiRoomStatus": "043_multi_room_reservations.php",
  "tamasyaMultiRoomSyncFolios": "043_multi_room_reservations.php",
+ "tamasyaMultiRoomSyncState": "043_multi_room_reservations.php",
  "tamasyaMultiRoomTelegramCallback": "044_multi_room_telegram.php",
  "tamasyaMultiRoomTelegramConfirm": "044_multi_room_telegram.php",
  "tamasyaMultiRoomTelegramContext": "044_multi_room_telegram.php",

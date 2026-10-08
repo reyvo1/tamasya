@@ -8,16 +8,19 @@ function tamasyaMultiRoomTelegramContext(array $actor,?string $nonce=null): arra
     if(!is_array($ctx)||($ctx['flow']??'')!=='multi-room'||($ctx['expiresAt']??0)<time()||($nonce!==null&&!hash_equals((string)($ctx['nonce']??''),$nonce)))throw new RuntimeException('Langkah grup sudah kedaluwarsa/berubah. Mulai kembali dari menu Kamar & Tamu.');
     return $ctx;
 }
-function tamasyaMultiRoomTelegramDetail(PDO $pdo,array $actor,string $id): array {
+function tamasyaMultiRoomTelegramDetail(PDO $pdo,array $actor,string $id,int $page=1): array {
     tamasyaMultiRoomRequire($pdo,$actor);$d=tamasyaMultiRoomDetail($pdo,$id);$buttons=[];$write=in_array($actor['role'],['admin','manager','receptionist'],true);
-    foreach(array_slice($d['bookings'],0,20) as $b){
+    $page=max(1,min($page,max(1,(int)ceil(count($d['bookings'])/20))));
+    foreach(array_slice($d['bookings'],($page-1)*20,20) as $b){
         if($write&&$b['status']==='reserved')$buttons[]=[['text'=>'Check-in kamar '.$b['roomNumber'],'callback_data'=>'mr_checkin:'.$id.':'.$b['id']]];
         if($write&&$b['status']==='active')$buttons[]=[['text'=>'Checkout kamar '.$b['roomNumber'],'callback_data'=>'r_checkout:'.$b['roomNumber']],['text'=>'Perpanjang '.$b['roomNumber'],'callback_data'=>'r_extend:'.$b['roomNumber']]];
     }
+    $nav=[];if($page>1)$nav[]=['text'=>'← Kamar','callback_data'=>'mr_detail:'.$id.':'.($page-1)];if($page*20<count($d['bookings']))$nav[]=['text'=>'Kamar →','callback_data'=>'mr_detail:'.$id.':'.($page+1)];if($nav)$buttons[]=$nav;
     if($write&&!in_array($d['lifecycle']['status'],['completed','cancelled'],true))$buttons[]=[['text'=>'➕ Tambah kamar','callback_data'=>'mr_add:'.$id]];
     if($write&&$d['totals']['balance']>0)$buttons[]=[['text'=>'💰 DP / Pembayaran grup','callback_data'=>'mr_pay:'.$id]];
     $buttons[]=[['text'=>'🔄 Muat ulang','callback_data'=>'mr_detail:'.$id],['text'=>'⬅️ Daftar grup','callback_data'=>'mr_list']];
-    return ['text'=>tamasyaMultiRoomTelegramSummary($d,'Detail reservasi grup'),'markup'=>['inline_keyboard'=>$buttons]];
+    $display=$d;$display['bookings']=array_slice($d['bookings'],($page-1)*20,20);
+    return ['text'=>tamasyaMultiRoomTelegramSummary($display,'Detail reservasi grup').' · Halaman kamar '.$page.'/'.max(1,(int)ceil(count($d['bookings'])/20)),'markup'=>['inline_keyboard'=>$buttons]];
 }
 function tamasyaMultiRoomTelegramPicker(array $ctx,int $page=1): array {
     $rows=$ctx['availableRooms'];$page=max(1,min($page,max(1,(int)ceil(count($rows)/12))));$buttons=[];
@@ -36,8 +39,8 @@ function tamasyaMultiRoomTelegramConfirm(PDO $pdo,array $actor,array $ctx): arra
 function tamasyaMultiRoomTelegramCallback(PDO $pdo,array $actor,string $callback,string $operationId): array {
     $parts=explode(':',$callback);$command=$parts[0];
     tamasyaMultiRoomRequire($pdo,$actor,!in_array($command,['mr_list','mr_detail'],true));
-    if($command==='mr_list'){$buttons=[];foreach(tamasyaEnterpriseFetchAll($pdo,'SELECT id,group_code,name FROM growth_group_reservations ORDER BY created_at DESC LIMIT 20') as $g)$buttons[]=[['text'=>$g['group_code'].' · '.(function_exists('mb_substr')?mb_substr($g['name'],0,30):substr($g['name'],0,30)),'callback_data'=>'mr_detail:'.$g['id']]];$buttons[]=[['text'=>'⬅️ Kamar & Tamu','callback_data'=>'guest_ops_menu']];return ['text'=>'🏨 *DAFTAR RESERVASI GRUP*','markup'=>['inline_keyboard'=>$buttons]];}
-    if($command==='mr_detail')return tamasyaMultiRoomTelegramDetail($pdo,$actor,$parts[1]??'');
+    if($command==='mr_list'){$page=max(1,min(100000,(int)($parts[1]??1)));$offset=($page-1)*20;$rows=tamasyaEnterpriseFetchAll($pdo,"SELECT id,group_code,name FROM growth_group_reservations ORDER BY created_at DESC,id DESC LIMIT 20 OFFSET {$offset}");$buttons=[];foreach($rows as $g)$buttons[]=[['text'=>$g['group_code'].' · '.(function_exists('mb_substr')?mb_substr($g['name'],0,30):substr($g['name'],0,30)),'callback_data'=>'mr_detail:'.$g['id']]];$nav=[];if($page>1)$nav[]=['text'=>'← Grup','callback_data'=>'mr_list:'.($page-1)];if(count($rows)===20)$nav[]=['text'=>'Grup →','callback_data'=>'mr_list:'.($page+1)];if($nav)$buttons[]=$nav;$buttons[]=[['text'=>'⬅️ Kamar & Tamu','callback_data'=>'guest_ops_menu']];return ['text'=>'🏨 *DAFTAR RESERVASI GRUP*','markup'=>['inline_keyboard'=>$buttons]];}
+    if($command==='mr_detail')return tamasyaMultiRoomTelegramDetail($pdo,$actor,$parts[1]??'',(int)($parts[2]??1));
     if($command==='mr_checkin'){$result=tamasyaMultiRoomCheckIn($pdo,$actor,$parts[1]??'',$parts[2]??'',$operationId);return tamasyaMultiRoomTelegramDetail($pdo,$actor,$result['data']['group']['id']);}
     if($command==='mr_start'){
         $intent=$parts[1]??'reserve';if(!in_array($intent,['reserve','check_in_now'],true))throw new InvalidArgumentException('Pilihan grup tidak valid.');

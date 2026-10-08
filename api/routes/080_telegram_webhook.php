@@ -791,7 +791,7 @@ Daftar diambil langsung dari sesi server yang masih berstatus OPEN. Pilih shift 
                         $allowedCallback = in_array($callbackRole,['admin','manager'],true);
                     } elseif (in_array($callbackData,$financeCallbacks,true) || $matchesPrefix($callbackData,$financePrefixes)) {
                         $allowedCallback = in_array($callbackRole,['admin','manager','finance'],true);
-                    } elseif ($callbackData==='mr_list'||str_starts_with($callbackData,'mr_detail:')) {
+                    } elseif ($callbackData==='mr_list'||str_starts_with($callbackData,'mr_list:')||str_starts_with($callbackData,'mr_detail:')) {
                         $allowedCallback=in_array($callbackRole,['admin','manager','receptionist','finance','owner'],true);
                     } elseif (str_starts_with($callbackData,'mr_')) {
                         $allowedCallback=in_array($callbackRole,['admin','manager','receptionist'],true);

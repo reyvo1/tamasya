@@ -56,13 +56,24 @@ function tamasyaMultiRoomSplitCents(float $amount,array $weights): array {
     if($left!==0)throw new RuntimeException('Pembagian pembayaran tidak dapat direkonsiliasi.');
     ksort($parts);return array_map(static fn($part)=>$part/100,$parts);
 }
+/** Parent status/dates are a cache derived from independent children, never their authority. */
+function tamasyaMultiRoomSyncState(PDO $pdo,string $id): void {
+    if(!$pdo->inTransaction())throw new RuntimeException('Group projection requires a transaction.');
+    $g=tamasyaEnterpriseFetch($pdo,'SELECT master_notes FROM growth_group_reservations WHERE id=? FOR UPDATE',[$id]);
+    if(!$g||(json_decode((string)($g['master_notes']??''),true)['format']??'')!=='multi-room-v1')return;
+    $rows=tamasyaEnterpriseFetchAll($pdo,'SELECT b.status,b.checkIn,b.checkOut FROM bookings b JOIN growth_group_booking_links l ON l.booking_id=b.id WHERE l.group_id=?',[$id]);
+    $state=tamasyaMultiRoomStatus($rows);$status=match($state['status']){'cancelled'=>$rows?'cancelled':'draft','completed'=>'completed','reserved'=>'confirmed',default=>'in_house'};
+    $live=array_values(array_filter($rows,static fn($b)=>$b['status']!=='cancelled'));
+    $pdo->prepare('UPDATE growth_group_reservations SET status=?,room_block_qty=?,arrival_date=COALESCE(?,arrival_date),departure_date=COALESCE(?,departure_date) WHERE id=?')
+        ->execute([$status,count($rows),$live?min(array_column($live,'checkIn')):null,$live?max(array_column($live,'checkOut')):null,$id]);
+}
 function tamasyaMultiRoomSyncFolios(PDO $pdo,string $groupId,array $actor,string $operationId): void {
     if(!tamasyaEnterpriseModuleEnabled('folio')||!tamasyaEnterpriseSchemaReady($pdo))return;
     $g=tamasyaEnterpriseFetch($pdo,'SELECT * FROM growth_group_reservations WHERE id=?',[$groupId]);if(!$g)return;
     $meta=json_decode((string)($g['master_notes']??''),true);if(($meta['format']??'')!=='multi-room-v1')return;
     $master=null;if($g['billing_mode']!=='individual'){
         $master=tamasyaEnterpriseFetch($pdo,"SELECT * FROM growth_folios WHERE group_id=? AND folio_type='master' AND status='open' ORDER BY created_at LIMIT 1 FOR UPDATE",[$groupId]);
-        if(!$master){if(tamasyaEnterpriseFetch($pdo,"SELECT id FROM growth_folios WHERE group_id=? AND folio_type='master' AND status<>'void' LIMIT 1",[$groupId]))throw new RuntimeException('Master folio sudah ditutup. Admin/Keuangan harus meninjau folio sebelum perubahan grup.');$id=tamasyaGrowthId('folio');$pdo->prepare("INSERT INTO growth_folios(id,folio_number,folio_type,group_id,name,status,created_by) VALUES (?,?,'master',?,?,'open',?)")->execute([$id,tamasyaEnterpriseInvoiceNumber('FOL'),$groupId,$g['name'].' / '.$g['group_code'],$actor['id']]);$master=['id'=>$id];}
+        if(!$master){if(tamasyaEnterpriseFetch($pdo,"SELECT id FROM growth_folios WHERE group_id=? AND folio_type='master' AND status<>'void' LIMIT 1",[$groupId]))throw new RuntimeException('Master folio sudah ditutup. Admin/Keuangan harus meninjau folio sebelum perubahan grup.');$id=tamasyaGrowthId('folio');$pdo->prepare("INSERT INTO growth_folios(id,folio_number,folio_type,group_id,company_id,name,status,created_by) VALUES (?,?,'master',?,?,?,'open',?)")->execute([$id,tamasyaEnterpriseInvoiceNumber('FOL'),$groupId,$g['company_id'],$g['name'].' / '.$g['group_code'],$actor['id']]);$master=['id'=>$id];}
     }
     foreach(tamasyaEnterpriseFetchAll($pdo,'SELECT * FROM growth_group_booking_links WHERE group_id=? ORDER BY booking_id',[$groupId]) as $link){
         $bid=$link['booking_id'];$b=tamasyaEnterpriseFetch($pdo,'SELECT status FROM bookings WHERE id=?',[$bid]);if(!$b)continue;
@@ -92,7 +103,7 @@ function tamasyaMultiRoomCreate(PDO $pdo,array $actor,array $input,string $chann
     $mode=(string)($input['billingMode']??'individual');if(!in_array($mode,['individual','master','split'],true))throw new InvalidArgumentException('Pilihan tagihan tidak valid.');
     $pct=$mode==='master'?100:($mode==='individual'?0:(float)($input['routedPercent']??50));if(!is_finite($pct)||($mode==='split'&&($pct<=0||$pct>=100)))throw new InvalidArgumentException('Porsi master split harus lebih dari 0 dan kurang dari 100%.');
     if($mode!=='individual')tamasyaEnterpriseRequireReady($pdo,'folio');
-    $numbers=[];foreach($rows as $r){$n=trim((string)($r['roomNumber']??''));if($n===''||isset($numbers[$n]))throw new InvalidArgumentException('Pilih kamar berbeda untuk setiap booking.');$numbers[$n]=true;}
+    $numbers=[];foreach($rows as $r){if(!is_array($r)||!is_scalar($r['roomNumber']??null)||!is_numeric($r['totalAmount']??null)||!is_finite((float)$r['totalAmount'])||round((float)$r['totalAmount'],2)<=0||(float)$r['totalAmount']>1000000000000)throw new InvalidArgumentException('Kamar dan harga bruto positif wajib valid.');$n=trim((string)($r['roomNumber']??''));if($n===''||isset($numbers[$n]))throw new InvalidArgumentException('Pilih kamar berbeda untuk setiap booking.');$numbers[$n]=true;}
     usort($rows,static fn($a,$b)=>strcmp((string)$a['roomNumber'],(string)$b['roomNumber']));
     $id=trim((string)($input['groupId']??''));if($id==='')$id='grp_op_'.substr(hash('sha256',$op),0,36);
     $receipt=tamasyaClaimCanonicalBookingReceipt($pdo,$actor,$op,$channel,$id,$input,false,'growth_group');if($receipt['state']==='duplicate')return ['duplicate'=>true]+$receipt['result'];
@@ -120,7 +131,7 @@ function tamasyaMultiRoomCreate(PDO $pdo,array $actor,array $input,string $chann
             writeRequiredEnterpriseAudit($pdo,$actor,'Menautkan kamar baru ke reservasi grup','growth_group',$id,null,['bookingId'=>$child['bookingId'],'roomNumber'=>$r['roomNumber']],$channel);
         }
         $pdo->prepare('UPDATE growth_group_reservations SET arrival_date=LEAST(arrival_date,?),departure_date=GREATEST(departure_date,?),room_block_qty=(SELECT COUNT(*) FROM growth_group_booking_links WHERE group_id=?),version=version+1,updated_by=? WHERE id=?')->execute([$boundsFrom,$boundsTo,$id,$actor['id'],$id]);
-        tamasyaMultiRoomSyncFolios($pdo,$id,$actor,$op);$data=tamasyaMultiRoomDetail($pdo,$id);
+        tamasyaMultiRoomSyncState($pdo,$id);tamasyaMultiRoomSyncFolios($pdo,$id,$actor,$op);$data=tamasyaMultiRoomDetail($pdo,$id);
         writeRequiredEnterpriseAudit($pdo,$actor,$g?'Menambah kamar reservasi grup':'Membuat reservasi/check-in grup','growth_group',$id,$g,['roomCount'=>count($data['bookings']),'billingMode'=>$mode,'lifecycle'=>$data['lifecycle']],$channel);
         $result=['groupId'=>$id,'data'=>$data,'children'=>$results,'operationId'=>$op];tamasyaCompleteCanonicalBookingReceipt($pdo,$op,$result);bumpServerRevision($pdo);tamasyaFinancialCommit($pdo);
         broadcastTelegramNotification($pdo,tamasyaMultiRoomTelegramSummary($data,$g?'Kamar ditambahkan':'Reservasi grup baru'),false,'bookings');return ['duplicate'=>false]+$result;
@@ -136,13 +147,13 @@ function tamasyaMultiRoomTelegramSummary(array $data,string $event): string {
 function tamasyaMultiRoomPayment(PDO $pdo,array $actor,array $input,string $channel,string $op): array {
     tamasyaMultiRoomRequire($pdo,$actor,true);$id=trim((string)($input['groupId']??''));$amount=$input['amount']??null;
     if(!is_numeric($amount)||!is_finite((float)$amount)||(float)$amount<=0)throw new InvalidArgumentException('Nominal pembayaran grup harus lebih dari nol.');
-    $amount=round((float)$amount,2);$receipt=tamasyaClaimCanonicalBookingReceipt($pdo,$actor,$op,$channel,$id,$input,false,'growth_group');if($receipt['state']==='duplicate')return ['duplicate'=>true]+$receipt['result'];
+    $amount=round((float)$amount,2);if($amount<=0)throw new InvalidArgumentException('Pembayaran minimum satu sen.');$receipt=tamasyaClaimCanonicalBookingReceipt($pdo,$actor,$op,$channel,$id,$input,false,'growth_group');if($receipt['state']==='duplicate')return ['duplicate'=>true]+$receipt['result'];
     try{$pdo->beginTransaction();if(!tamasyaEnterpriseFetch($pdo,'SELECT id FROM growth_group_reservations WHERE id=? FOR UPDATE',[$id]))throw new InvalidArgumentException('Grup tidak ditemukan.');
         $children=tamasyaEnterpriseFetchAll($pdo,"SELECT b.id,b.balanceDue FROM bookings b JOIN growth_group_booking_links l ON l.booking_id=b.id WHERE l.group_id=? AND b.status<>'cancelled' AND b.balanceDue>0 ORDER BY b.id FOR UPDATE",[$id]);
         $weights=array_map(static fn($b)=>(float)$b['balanceDue'],$children);if(!$children||$amount>array_sum($weights)+0.001)throw new InvalidArgumentException('Pembayaran melebihi sisa tagihan grup.');
         $parts=tamasyaMultiRoomSplitCents($amount,$weights);$results=[];
         foreach($children as $i=>$b){if($parts[$i]<=0)continue;$results[]=recordBookingDeposit($pdo,$actor,$b['id'],['amount'=>$parts[$i],'paymentMethod'=>$input['paymentMethod']??'cash','bankAccountId'=>$input['bankAccountId']??'','date'=>$input['date']??date('Y-m-d'),'notes'=>'Pembayaran reservasi grup','operationId'=>'mr_pay_'.substr(hash('sha256',$op.'|'.$b['id']),0,60)],$channel);}
-        tamasyaMultiRoomSyncFolios($pdo,$id,$actor,$op);$result=['data'=>tamasyaMultiRoomDetail($pdo,$id),'payments'=>$results,'operationId'=>$op];
+        tamasyaMultiRoomSyncState($pdo,$id);tamasyaMultiRoomSyncFolios($pdo,$id,$actor,$op);$result=['data'=>tamasyaMultiRoomDetail($pdo,$id),'payments'=>$results,'operationId'=>$op];
         writeRequiredEnterpriseAudit($pdo,$actor,'Pembayaran/DP reservasi grup','growth_group',$id,null,['amount'=>$amount,'method'=>$input['paymentMethod']??'cash','transactionIds'=>array_column($results,'transactionId')],$channel);
         tamasyaCompleteCanonicalBookingReceipt($pdo,$op,$result);tamasyaFinancialCommit($pdo);$GLOBALS['tamasya_multi_room_events']=[];
         broadcastTelegramNotification($pdo,tamasyaMultiRoomTelegramSummary($result['data'],'Pembayaran grup: Rp '.tamasyaTelegramFormatAmount($amount)),true,'bookings');return ['duplicate'=>false]+$result;
@@ -159,6 +170,7 @@ function tamasyaMultiRoomEdit(PDO $pdo,array $actor,array $input,string $channel
         if(($meta['email']??'')!==''&&!filter_var($meta['email'],FILTER_VALIDATE_EMAIL))throw new InvalidArgumentException('Email pemesan tidak valid.');
         $company=$g['company_id'];if(array_key_exists('companyId',$input)){$company=trim((string)$input['companyId'])?:null;if($company&&!tamasyaEnterpriseFetch($pdo,"SELECT id FROM growth_companies WHERE id=? AND status='active' FOR UPDATE",[$company]))throw new InvalidArgumentException('Perusahaan tidak aktif/tidak ditemukan.');}
         $pdo->prepare('UPDATE growth_group_reservations SET company_id=?,name=?,master_notes=?,updated_by=?,version=version+1 WHERE id=?')->execute([$company,$name,tamasyaJsonEncode($meta),$actor['id'],$id]);
+        if($company!==$g['company_id']){if(tamasyaEnterpriseModuleEnabled('folio')&&tamasyaEnterpriseSchemaReady($pdo)){if(tamasyaEnterpriseFetch($pdo,"SELECT i.id FROM growth_folio_invoices i JOIN growth_folios f ON f.id=i.folio_id WHERE f.group_id=? AND i.status='issued' LIMIT 1",[$id]))throw new RuntimeException('Corporate tidak dapat diganti saat invoice master masih terbit. Void/koreksi dahulu melalui Keuangan.');$pdo->prepare("UPDATE growth_folios SET company_id=? WHERE group_id=? AND status='open'")->execute([$company,$id]);}}
         foreach((array)($input['occupants']??[]) as $row){$bid=trim((string)($row['bookingId']??''));$guest=trim((string)($row['guestName']??''));if($guest===''||tamasyaStringLength($guest)>150)throw new InvalidArgumentException('Nama penghuni tidak valid.');
             $b=tamasyaEnterpriseFetch($pdo,'SELECT b.* FROM bookings b JOIN growth_group_booking_links l ON l.booking_id=b.id WHERE l.group_id=? AND b.id=? FOR UPDATE',[$id,$bid]);if(!$b||!in_array($b['status'],['reserved','active'],true))throw new RuntimeException('Penghuni hanya dapat diubah pada kamar grup yang reserved/aktif.');
             $pdo->prepare('UPDATE bookings SET guestName=?,updatedBy=?,updatedSource=?,version=version+1 WHERE id=?')->execute([$guest,$actor['id'],$channel,$bid]);writeRequiredEnterpriseAudit($pdo,$actor,'Mengubah penghuni kamar grup','booking',$bid,['guestFingerprint'=>hash('sha256',$b['guestName'])],['guestFingerprint'=>hash('sha256',$guest)],$channel);
@@ -188,7 +200,7 @@ function tamasyaMultiRoomCheckIn(PDO $pdo,array $actor,string $groupId,string $b
         $b=tamasyaEnterpriseFetch($pdo,'SELECT b.* FROM bookings b JOIN growth_group_booking_links l ON l.booking_id=b.id WHERE l.group_id=? AND b.id=? FOR UPDATE',[$groupId,$bookingId]);if(!$g||!$b)throw new InvalidArgumentException('Booking bukan bagian dari grup ini.');
         if($b['status']!=='active')tamasyaCanonicalReservedCheckInInTransaction($pdo,$actor,$b,'telegram');
         writeRequiredEnterpriseAudit($pdo,$actor,'Check-in kamar reservasi grup','booking',$bookingId,['status'=>$b['status']],['status'=>'active','groupId'=>$groupId],'telegram');
-        $result=['data'=>tamasyaMultiRoomDetail($pdo,$groupId)];tamasyaCompleteCanonicalBookingReceipt($pdo,$op,$result);bumpServerRevision($pdo);tamasyaFinancialCommit($pdo);
+        tamasyaMultiRoomSyncState($pdo,$groupId);$result=['data'=>tamasyaMultiRoomDetail($pdo,$groupId)];tamasyaCompleteCanonicalBookingReceipt($pdo,$op,$result);bumpServerRevision($pdo);tamasyaFinancialCommit($pdo);
         broadcastTelegramNotification($pdo,'🏨 Check-in kamar '.tamasyaTelegramPlainText($b['roomNumber']).' berhasil.',false,'bookings');return $result;
     }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();tamasyaFailCanonicalBookingReceipt($pdo,$op,$e);throw $e;}
 }

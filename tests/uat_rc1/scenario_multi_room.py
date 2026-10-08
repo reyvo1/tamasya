@@ -9,7 +9,7 @@ def check(name,ok,detail=None):
 def call(name,command,data=None,expected=(200,),query=None,op=None,port=None):
  action='multi-room-bookings';payload=dict(data or {});payload['command']=command
  if query is not None:action='action='+action+'&'+urllib.parse.urlencode({'command':command,**query});payload=None
- s,b=request(action,'GET' if query is not None else 'POST',payload,op or run+'_'+name.replace(' ','_'),port)
+ s,b=request(action,'GET' if query is not None else 'POST',payload,op or run+'_'+re.sub(r'[^A-Za-z0-9_.:-]','_',name),port)
  check(name,s in expected and b.get('success') is (s<300),{'status':s,'error':b.get('error',b.get('message'))})
  return s,b
 _,ping=request('ping');today=datetime.date.fromisoformat(ping['timestamp'][:10]);future=today+datetime.timedelta(days=60)
@@ -89,7 +89,12 @@ def button(b,prefix,needle=None):
    if cmd.startswith(prefix) and (needle is None or needle in cmd):return raw
  raise RuntimeError('Expected Telegram button absent '+prefix+' '+str(needle))
 tg('start','mr_start:check_in_now');tg('primary','TG Multi Primary',False);tg('phone','-',False);tg('source','Direct',False);picker=tg('dates',str(today)+' '+str(today+datetime.timedelta(days=1)),False)
-for i,n in enumerate(rooms[10:13]):picker=tg('select'+str(i),button(picker,'mr_select:',n))
+for i,n in enumerate(rooms[10:13]):
+ for page in range(1,100):
+  try:room_button=button(picker,'mr_select:',n);break
+  except RuntimeError:picker=tg('pick_page_'+str(i)+'_'+str(page+1),button(picker,'mr_page:'+str(page+1)+':'))
+ else:raise RuntimeError('Room unavailable in paginated Telegram picker')
+ picker=tg('select'+str(i),room_button)
 tg('next',button(picker,'mr_next:'));billing=tg('occupants',rooms[11]+'=TG Second',False);confirm=tg('individual',button(billing,'mr_bill:individual:'));confirm_button=button(confirm,'mr_confirm:');done=tg('confirm',confirm_button)
 ctx=json.loads(db('SELECT telegram_context FROM staff WHERE id=?',[admin['id']])[0]['telegram_context']);tggid=ctx['groupId'];_,td=call('Read Telegram created group','detail',query={'id':tggid});td=td['data']
 check('Telegram direct group creates three active canonical children',len(td['bookings'])==3 and td['lifecycle']['status']=='checked_in' and td['bookings'][1]['guestName']=='TG Second',td['lifecycle'])

@@ -23,11 +23,12 @@ switch ($action) {
             $method=$_SERVER['REQUEST_METHOD'];$command=trim((string)($input['command']??$_GET['command']??($method==='GET'?'list':'create')));
             tamasyaMultiRoomRequire($pdo,$loggedInStaff,$method!=='GET');
             if($method==='GET'){
-                if($command==='availability')$data=tamasyaMultiRoomAvailability($pdo,$loggedInStaff,$_GET);
+                if($command==='companies')$data=tamasyaEnterpriseFetchAll($pdo,"SELECT id,name FROM growth_companies WHERE status='active' ORDER BY name");
+                elseif($command==='availability')$data=tamasyaMultiRoomAvailability($pdo,$loggedInStaff,$_GET);
                 elseif($command==='detail')$data=tamasyaMultiRoomDetail($pdo,trim((string)($_GET['id']??'')));
-                elseif($command==='list')$data=tamasyaEnterpriseFetchAll($pdo,"SELECT g.id,g.group_code,g.name,g.arrival_date,g.departure_date,g.billing_mode,(SELECT COUNT(*) FROM growth_group_booking_links l WHERE l.group_id=g.id) booking_count FROM growth_group_reservations g ORDER BY g.created_at DESC LIMIT 200");
+                elseif($command==='list'){$page=max(1,min(100000,(int)($_GET['page']??1)));$offset=($page-1)*50;$data=tamasyaEnterpriseFetchAll($pdo,"SELECT g.id,g.group_code,g.name,g.arrival_date,g.departure_date,g.billing_mode,(SELECT COUNT(*) FROM growth_group_booking_links l WHERE l.group_id=g.id) booking_count FROM growth_group_reservations g ORDER BY g.created_at DESC,g.id DESC LIMIT 50 OFFSET {$offset}");}
                 else throw new InvalidArgumentException('Pilihan reservasi grup tidak dikenal.');
-                echo tamasyaJsonEncode(['success'=>true,'data'=>$data]);
+                echo tamasyaJsonEncode(['success'=>true,'data'=>$data]+($command==='list'?['nextPage'=>count($data)===50?$page+1:null]:[]));
             }elseif($method==='POST'){
                 $op=trim((string)($GLOBALS['tamasya_request_operation_id']??''));if($op==='')throw new DomainException('Operation ID wajib untuk reservasi grup.',428);
                 if($command==='create')echo tamasyaJsonEncode(['success'=>true]+tamasyaMultiRoomCreate($pdo,$loggedInStaff,$input,'web',$op));
