@@ -4,6 +4,9 @@ define('TAMASYA_API_ENTRY',true);define('TAMASYA_RECEIPT_COMPACTION_LIBRARY',tru
 require dirname(__DIR__).'/api/modules/front_office/043_multi_room_reservations.php';
 require dirname(__DIR__).'/api/modules/front_office/044_multi_room_telegram.php';
 require dirname(__DIR__).'/receipt_storage_maintenance.php';
+require dirname(__DIR__).'/api/support/012_domain_primitives.php';
+require dirname(__DIR__).'/api/modules/front_office/040_rooms_checkout_housekeeping.php';
+require dirname(__DIR__).'/api/modules/front_office/042_operational_lifecycle_invariants.php';
 $n=0;
 function mrCheck(bool $ok,string $label):void{global $n;if(!$ok)throw new RuntimeException($label);echo "PASS $label\n";$n++;}
 function mrReject(callable $fn,string $label):void{try{$fn();}catch(InvalidArgumentException|RuntimeException|DomainException $e){mrCheck(true,$label);return;}throw new RuntimeException($label);}
@@ -33,4 +36,19 @@ mrCheck(str_contains(tamasyaMultiRoomConflictLabel(['status'=>'active','_resolve
 $picker=tamasyaMultiRoomTelegramSourcePicker(['bookingSources'=>$opts,'nonce'=>'bound']);$buttons=array_merge(...$picker['markup']['inline_keyboard']);
 mrCheck(count(array_filter($buttons,static fn($b)=>$b['text']==='Traveloka'&&$b['callback_data']==='mr_source:2:bound'))===1,'Telegram OTA source button keeps its bound state nonce and exact name');
 mrCheck(count(array_filter($buttons,static fn($b)=>$b['callback_data']==='mr_source:custom:bound'))===1,'Telegram retains explicit custom source text entry');
+// Reservation planning and physical check-in have distinct blocker contracts.
+$stay=['type'=>'active_booking','id'=>'guest-now','status'=>'active'];
+$key=['type'=>'physical_key','status'=>'issued','bookingId'=>'guest-now'];
+mrCheck(tamasyaReservationInventoryBlockers([$stay,$key,['type'=>'housekeeping']])===[],'Normal issued key for current guest does not block future reservation');
+mrCheck(tamasyaDeriveRoomOperationalStatus([$stay,$key])==='booked','Same issued-key room remains physically occupied for check-in');
+foreach([['status'=>'missing','bookingId'=>'guest-now'],['status'=>'override','bookingId'=>'guest-now'],['status'=>'issued','bookingId'=>'other'],['status'=>'issued','bookingId'=>'']] as $exception){$b=array_merge($key,$exception);mrCheck(tamasyaReservationInventoryBlockers([$stay,$b])===[$b],'Exceptional or unbound key still blocks inventory');}
+mrCheck(tamasyaReservationInventoryBlockers([$key])===[$key],'Issued orphan key still blocks inventory');
+foreach(['maintenance','operational_hold','night_audit','smart_lock','lost_found'] as $type){$b=['type'=>$type];mrCheck(tamasyaReservationInventoryBlockers([$stay,$key,$b])===[$b],'Unresolved domain remains blocked: '.$type);}
+$b=['id'=>'guest-now','status'=>'active','checkIn'=>'2026-10-08','checkOut'=>'2026-10-09','stayMode'=>'overnight','isOpenEnded'=>0];
+mrCheck(tamasyaR3StayWindowConflictInRows([$b],'2026-10-09 14:00:00','2026-10-10 12:00:00','12:00:00','14:00:00')===null,'Future stay after occupied checkout does not conflict');
+$c=tamasyaR3StayWindowConflictInRows([$b],'2026-10-08 14:00:00','2026-10-09 12:00:00','12:00:00','14:00:00');mrCheck($c['id']==='guest-now'&&$c['_resolvedEndAt']==='2026-10-09 12:00:00','True overlap resolves the canonical stored window');
+$b['isOpenEnded']=1;mrCheck(tamasyaR3StayWindowConflictInRows([$b],'2026-10-12 14:00:00','2026-10-13 12:00:00','12:00:00','14:00:00')!==null,'Open-ended current guest does not invent future checkout');
+$read=substr($src,strpos($src,'function tamasyaMultiRoomAvailability'),strpos($src,'function tamasyaMultiRoomSplitCents')-strpos($src,'function tamasyaMultiRoomAvailability'));
+$loop=substr($read,strpos($read,'foreach($rooms as $room)'));
+mrCheck(!str_contains($loop,'$pdo->')&&!str_contains($loop,'resolveConfiguredTaxRate(')&&str_contains($loop,'tamasyaR3StayWindowConflictInRows('),'Bulk availability uses shared windows with no per-room queries');
 echo "Multi-room and lossless storage unit assertions: $n passed.\n";

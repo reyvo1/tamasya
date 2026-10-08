@@ -295,6 +295,19 @@ function tamasyaR3StoredBookingInventoryWindow(array $booking, string $checkoutT
     return $window;
 }
 
+/** Pure comparison shared by locked writes and bulk read-only availability. */
+function tamasyaR3StayWindowConflictInRows(array $candidates,string $startAt,string $endAt,string $checkoutTime,string $checkinTime): ?array {
+    if(strtotime($startAt)===false||strtotime($endAt)===false||strtotime($endAt)<=strtotime($startAt))throw new InvalidArgumentException('Periode menginap tidak valid.');
+    foreach($candidates as $candidate){
+        try{$window=tamasyaR3StoredBookingInventoryWindow($candidate,$checkoutTime,$checkinTime);}
+        catch(InvalidArgumentException $e){throw new RuntimeException('Booking '.(string)($candidate['id']??'-').' memiliki jadwal tersimpan tidak valid: '.$e->getMessage());}
+        if(tamasyaR3StayWindowsOverlap($startAt,$endAt,(string)$window['startAt'],(string)$window['endAt'])){
+            $candidate['_resolvedStartAt']=$window['startAt'];$candidate['_resolvedEndAt']=$window['endAt'];return $candidate;
+        }
+    }
+    return null;
+}
+
 /** One canonical conflict finder for every stay-window mutation channel. */
 function tamasyaR3FindStayWindowConflict(PDO $pdo, string $bookingId, string $roomNumber, string $startAt, string $endAt, bool $forUpdate=true): ?array {
     $bookingId=trim($bookingId);$roomNumber=trim($roomNumber);
@@ -308,18 +321,7 @@ function tamasyaR3FindStayWindowConflict(PDO $pdo, string $bookingId, string $ro
     if($bookingId!==''){$sql.=" AND id<>?";$params[]=$bookingId;}
     $sql.=" ORDER BY checkIn,scheduledCheckInAt,id".$lock;
     $stmt=$pdo->prepare($sql);$stmt->execute($params);
-    foreach($stmt->fetchAll(PDO::FETCH_ASSOC)?:[] as $candidate){
-        try{$window=tamasyaR3StoredBookingInventoryWindow($candidate,$checkoutTime,$checkinTime);}
-        catch(InvalidArgumentException $e){
-            throw new RuntimeException('Booking '.(string)($candidate['id']??'-').' memiliki jadwal tersimpan tidak valid: '.$e->getMessage());
-        }
-        if(tamasyaR3StayWindowsOverlap($startAt,$endAt,(string)$window['startAt'],(string)$window['endAt'])){
-            $candidate['_resolvedStartAt']=$window['startAt'];
-            $candidate['_resolvedEndAt']=$window['endAt'];
-            return $candidate;
-        }
-    }
-    return null;
+    return tamasyaR3StayWindowConflictInRows($stmt->fetchAll(PDO::FETCH_ASSOC)?:[],$startAt,$endAt,$checkoutTime,$checkinTime);
 }
 
 /** One overlap rule for every stay-window mutation channel. */

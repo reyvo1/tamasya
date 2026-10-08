@@ -1,5 +1,5 @@
-import {f,t} from '../app-core.js?v=20261008-r14-mrfix';
-import {Oc} from './app-shared.js?v=20261008-r14-mrfix';
+import {f,t} from '../app-core.js?v=20261008-r15';
+import {Oc} from './app-shared.js?v=20261008-r15';
 const money=value=>window.TamasyaCurrencyDisplay.formatNumber(value);
 async function requestPrice(bookingId,method='GET',payload=null){
   const suffix=payload&&method==='GET'?`&finalTotal=${encodeURIComponent(payload.finalTotal)}`:'';

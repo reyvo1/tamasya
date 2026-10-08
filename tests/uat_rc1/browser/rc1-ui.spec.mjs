@@ -490,7 +490,7 @@ test('Fresh service worker precaches the exact React module for offline import',
     // Memo does not import the PMS React bundle, so the vendor cannot be warmed
     // accidentally before this check of the newly installed precache.
     await page.goto(BASE+'/internal-memo.html');
-    const vendor='assets/chunks/vendor-react.js?v=20261008-r14-mrfix';
+    const vendor='assets/chunks/vendor-react.js?v=20261008-r15';
     const cached=await page.evaluate(async vendor=>{
       await navigator.serviceWorker.register('./sw.js');await navigator.serviceWorker.ready;
       const cacheKeys=await caches.keys();
@@ -574,7 +574,7 @@ test('Layout: exact large amounts stay inside cards and audit shift stays above 
     await page.setViewportSize({width,height:768});
     await page.locator('#tab-dashboard').click();await expect(page.locator('.tamasya-dashboard-summary')).toBeVisible();await expectMetricContentContained(page);await expectNoPageHorizontalOverflow(page);
     await page.locator('#tab-finance').click();await expect(page.locator('.tamasya-finance-summary')).toBeVisible();
-    await expect(page.locator('.tamasya-finance-summary .tamasya-metric-value').nth(1)).toHaveText('Rp 97.770.600,30');
+    await expect(page.locator('.tamasya-finance-summary .tamasya-metric-value').nth(1)).toHaveText('Rp 97.770.600');
     await expectMetricContentContained(page);await expectNoPageHorizontalOverflow(page);
     await page.locator('#tab-report').click();
     const dates=page.locator('#financial-report-view input[type="date"]');await dates.nth(0).fill('2026-01-01');await dates.nth(1).fill('2026-01-31');
@@ -609,7 +609,7 @@ test('Activated Growth stays in native Dashboard and reservation views with exac
    return route.continue();
  });
  await page.goto('/index.html');await expect(page.locator('#tab-dashboard')).toBeVisible();await page.locator('#tab-dashboard').click();
- const kpi=page.locator('#root #tamasya-growth-kpi-mini');await expect(kpi).toBeVisible();await expect(kpi).toContainText('Rp 4.640.000,30');
+ const kpi=page.locator('#root #tamasya-growth-kpi-mini');await expect(kpi).toBeVisible();await expect(kpi).toContainText('Rp 4.640.000');
  await expect.poll(()=>kpi.evaluate(el=>getComputedStyle(el).position)).toBe('relative');
  const textIssues=await kpi.locator('.tamasya-growth-metric strong').evaluateAll(values=>values.filter(value=>{const card=value.closest('.tamasya-growth-metric').getBoundingClientRect(),range=document.createRange();range.selectNodeContents(value);return Array.from(range.getClientRects()).some(r=>r.left<card.left||r.right>card.right||r.bottom>card.bottom);}).map(el=>el.textContent));
  expect(textIssues).toEqual([]);await expectNoPageHorizontalOverflow(page);
@@ -625,12 +625,12 @@ test('Activated Growth stays in native Dashboard and reservation views with exac
  await form.getByLabel('Tanggal check-in reservasi',{exact:true}).fill('2026-01-28');await form.getByLabel('Tanggal check-out reservasi',{exact:true}).fill('2026-01-31');
  await form.getByLabel('Sumber booking reservasi',{exact:true}).selectOption('Traveloka');
  const price=form.getByLabel('Harga reservasi manual',{exact:true});await price.fill('450000');
- const suggestion=form.locator('#tamasya-growth-suggest-box');await expect(suggestion).toContainText('Rp 999.999.999,30');await expect(suggestion).toContainText('3 malam · Traveloka');
+ const suggestion=form.locator('#tamasya-growth-suggest-box');await expect(suggestion).toContainText('Rp 999.999.999');await expect(suggestion).toContainText('3 malam · Traveloka');
  await expect(price).toHaveValue('450000');
  await expect.poll(()=>quotes.at(-1)?.bookingSource).toBe('Traveloka');expect(quotes.at(-1)).toMatchObject({planId:'ui_standard',roomType:'Standard',stayDate:'2026-01-28',lengthOfStay:'3'});
  await form.getByLabel('Tanggal check-out reservasi',{exact:true}).fill('2026-02-01');await expect.poll(()=>quotes.at(-1)?.lengthOfStay).toBe('4');await expect(price).toHaveValue('450000');
  await expectNoPageHorizontalOverflow(page);expect(errors).toEqual([]);expect(writes).toEqual([]);
- writeEvidence('growth-native-widgets',info,{pass:true,currency:'Rp 4.640.000,30',kpiNormalFlow:true,reportsClean:true,quote:quotes.at(-1),priceUnchanged:true,writes:0});
+ writeEvidence('growth-native-widgets',info,{pass:true,currency:'Rp 4.640.000',kpiNormalFlow:true,reportsClean:true,quote:quotes.at(-1),priceUnchanged:true,writes:0});
 });
 
 test('Negotiated checkout web form previews PBJT and changes unpaid price without receiving money',async({page},info)=>{
@@ -703,13 +703,19 @@ test('Multi-room main UI creates independent bookings and remains contained on d
  const headers={Origin:BASE,'X-Device-ID':'uat-browser-rc1',Authorization:'Bearer '+auth.token,'X-Tamasya-Offline-Session-Scope':auth.offlineSessionScopeId};
  const salt=Date.now().toString(36).slice(-5),numbers=[0,1,2].map(i=>'BU'+salt+i);
  for(const number of numbers){const r=await request.post(`${BASE}/api.php?action=rooms`,{headers:{...headers,'X-Tamasya-Operation-ID':'mr_ui_room_'+number},data:{number,type:'SIM Deluxe',price:200000,floor:3}});expect(r.status()).toBe(200);expect((await r.json()).success).toBe(true);}
+ const ping=await (await request.get(`${BASE}/api.php?action=ping`,{headers})).json(),hotelDay=ping.timestamp.slice(0,10),nextDay=new Date(hotelDay+'T12:00:00Z');nextDay.setUTCDate(nextDay.getUTCDate()+1);
+ const activeResponse=await request.post(`${BASE}/api.php?action=multi-room-bookings`,{headers:{...headers,'X-Tamasya-Operation-ID':'mr_ui_active_'+numbers[0]},data:{command:'create',guestName:'Already Staying',bookingSource:'Direct',checkIn:hotelDay,checkOut:nextDay.toISOString().slice(0,10),billingMode:'individual',lifecycleIntent:'check_in_now',rooms:[{roomNumber:numbers[0],totalAmount:220000}]}});expect(activeResponse.status()).toBe(200);const activeCreated=await activeResponse.json(),occupied=activeCreated.data.bookings[0];
+ const keyResponse=await request.post(`${BASE}/api.php?action=operations-center`,{headers:{...headers,'X-Tamasya-Operation-ID':'mr_ui_key_'+numbers[0]},data:{command:'key-issue',bookingId:occupied.id,reason:'UAT actual guest key'}});expect(keyResponse.status()).toBe(200);expect((await keyResponse.json()).success).toBe(true);
  await page.goto('/index.html');await waitLoaded(page);await page.locator('#domain-frontoffice').click();await page.locator('[role="menu"] [data-route="rooms"]').click();
  await page.getByRole('button',{name:'Reservasi Beberapa Kamar',exact:true}).click();const dialog=page.getByRole('dialog',{name:'Reservasi grup',exact:true});await expect(dialog).toBeVisible();await expect(page.getByRole('dialog')).toHaveCount(1);await expect(dialog).toHaveAttribute('aria-modal','true');await expect(dialog.locator('.mr-dialog')).not.toHaveAttribute('role','dialog');
+ await expect(dialog.getByLabel('Check-in',{exact:true})).toHaveValue('');
+ for(const n of numbers){const choice=dialog.locator('.mr-choice').filter({hasText:'Kamar '+n});await expect(choice.locator('input')).toBeEnabled();await choice.locator('input').check();}
+ await expect(dialog.locator('.mr-choice').filter({hasText:'Kamar '+numbers[0]})).toContainText('Terisi saat ini');
  await expect(dialog.getByLabel('Sumber booking',{exact:true})).toHaveJSProperty('tagName','SELECT');await dialog.getByLabel('Sumber booking',{exact:true}).selectOption('Traveloka');await expect(dialog).toContainText('Tunai/Transfer/QRIS');
  await dialog.getByLabel('Nama pemesan',{exact:true}).fill('UAT Browser Primary');await dialog.getByLabel('Nomor HP',{exact:true}).fill('08000000042');
  const date=await page.evaluate(()=>window.TamasyaPosBusinessDatePolicy.dateAt(new Date(),window.TAMASYA_RUNTIME_CONFIG.propertyTimezone));const from=new Date(date+'T12:00:00Z');from.setUTCDate(from.getUTCDate()+75);const to=new Date(from);to.setUTCDate(to.getUTCDate()+1);
  await dialog.getByLabel('Check-in',{exact:true}).fill(from.toISOString().slice(0,10));await dialog.getByLabel('Check-out',{exact:true}).fill(to.toISOString().slice(0,10));
- for(const n of numbers){const choice=dialog.locator('.mr-choice').filter({hasText:'Kamar '+n});await expect(choice.locator('input')).toBeEnabled();await choice.locator('input').check();}
+ for(const n of numbers){const choice=dialog.locator('.mr-choice').filter({hasText:'Kamar '+n});await expect(choice.locator('input')).toBeEnabled();await expect(choice.locator('input')).toBeChecked();}
  await expect(dialog.locator('fieldset')).toHaveCount(3);await dialog.locator('fieldset').nth(1).getByLabel('Penghuni (boleh kosong)',{exact:true}).fill('Second Occupant');
  const bounds=async()=>{const box=await dialog.locator('.mr-dialog').boundingBox();expect(box).not.toBeNull();const viewport=page.viewportSize();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.y).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(viewport.width+1);expect(box.y+box.height).toBeLessThanOrEqual(viewport.height+1);await expectNoPageHorizontalOverflow(page);};await bounds();
  if(info.project.name==='desktop'){await page.setViewportSize({width:768,height:1024});await bounds();await page.screenshot({path:path.join(LOGDIR,'multi-room-tablet.png')});await page.setViewportSize({width:1440,height:1000});}
@@ -717,5 +723,7 @@ test('Multi-room main UI creates independent bookings and remains contained on d
  const created=page.waitForResponse(r=>r.url().includes('action=multi-room-bookings')&&r.request().method()==='POST'&&r.request().postDataJSON()?.command==='create');await dialog.getByRole('button',{name:'Simpan reservasi',exact:true}).click();const response=await created;expect(response.status()).toBe(200);const data=await response.json();expect(data.success).toBe(true);expect(data.data.bookings).toHaveLength(3);expect(data.data.group.name).toBe('UAT Browser Primary');expect(data.data.bookings.map(b=>b.roomNumber).sort()).toEqual([...numbers].sort());expect(data.data.bookings.every(b=>b.status==='reserved')).toBe(true);expect(data.data.bookings.every(b=>b.bookingSource==='Traveloka')).toBe(true);expect(data.data.bookings.some(b=>b.guestName==='Second Occupant')).toBe(true);
  await expect(dialog).toContainText(data.data.group.group_code);await expect(dialog.locator('tbody tr')).toHaveCount(3);await expect(page.getByRole('dialog')).toHaveCount(1);await bounds();await page.screenshot({path:path.join(LOGDIR,`multi-room-detail-${info.project.name}.png`)});
  await dialog.getByRole('button',{name:'Tutup reservasi grup',exact:true}).click();await expect(dialog).toHaveCount(0);await page.getByRole('button',{name:'Daftar Grup',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(1);await expect(page.getByRole('dialog')).toContainText(data.data.group.group_code);await page.getByRole('dialog').getByRole('button',{name:'Tutup reservasi grup',exact:true}).click();
+ await page.getByRole('button',{name:'Check-in Beberapa Kamar',exact:true}).click();const checkin=page.getByRole('dialog',{name:'Reservasi grup',exact:true});await expect(checkin.locator('.mr-choice').filter({hasText:'Kamar '+numbers[0]}).locator('input')).toBeDisabled();await expect(checkin.getByLabel('Check-in',{exact:true})).toHaveValue(hotelDay);await expect(checkin.getByLabel('Check-in',{exact:true})).toHaveJSProperty('readOnly',true);await checkin.getByRole('button',{name:'Tutup reservasi grup',exact:true}).click();
+ const activeDetail=await (await request.get(`${BASE}/api.php?action=multi-room-bookings&command=detail&id=${activeCreated.groupId}`,{headers})).json();expect(activeDetail.data.bookings[0].status).toBe('active');expect(activeDetail.data.bookings[0].keyControlStatus).toBe('issued');
  expect(errors).toEqual([]);writeEvidence('multi-room-main-flow',info,{pass:true,groupId:data.groupId,rooms:numbers,bookings:data.data.bookings.map(b=>b.id),totals:data.data.totals,contained:true});
 });

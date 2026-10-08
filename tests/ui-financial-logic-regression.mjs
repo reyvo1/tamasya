@@ -53,11 +53,11 @@ check('Saved tax remains unknown until supported by a valid snapshot',()=>{
  assert.equal(Math.round(policy.savedTaxAmount(receipt('known',110000))),10000);
  assert.equal(policy.savedTaxAmount(receipt('invalid',110000,{taxAmount:99})),null);
 });
-check('Fractional rupiah and property-date month defaults remain visible and consistent',()=>{
+check('Whole-rupiah UI retains exact underlying money and property-date month defaults',()=>{
  const feature=read('assets/chunks/feature-shared.js');
  const start=feature.indexOf('function Ve('),end=feature.indexOf('function t8(',start);
  const format=new Function('window',feature.slice(start,end)+';return Ve;')(window);
- assert.ok(format(250000.30).includes('250.000,30'));
+ assert.equal(format(250000.30),'Rp 250.000');assert.equal(window.TamasyaCurrencyDisplay.formatRupiahExact(250000.30),'Rp 250.000,30');
  const shared=read('assets/chunks/app-shared.js');const dateStart=shared.indexOf('function ls('),dateEnd=shared.indexOf('function Mh(',dateStart);
  const dateAt=new Function('window',shared.slice(dateStart,dateEnd)+';return ls;')(window);
  assert.equal(dateAt(new Date('2026-01-31T17:00:00Z')),'2026-02-01');

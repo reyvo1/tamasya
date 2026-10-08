@@ -187,7 +187,7 @@ function getRoomOperationalBlockers(PDO $pdo, string $roomNumber, bool $forUpdat
         $keyMode=strtolower(trim((string)($keyState['access_mode']??'physical')));
         if(in_array($keyMode,['physical','hybrid'],true) && in_array($keyStatus,['issued','missing','override'],true)){
             $keyStateBlocks=true;
-            $blockers[]=['type'=>'physical_key','id'=>$roomNumber,'status'=>$keyStatus,'message'=>$keyStatus==='missing'?'kunci fisik belum ditemukan/diamankan':'register kunci fisik belum kembali secured'];
+            $blockers[]=['type'=>'physical_key','id'=>$roomNumber,'status'=>$keyStatus,'bookingId'=>(string)($keyState['current_booking_id']??''),'message'=>$keyStatus==='missing'?'kunci fisik belum ditemukan/diamankan':'register kunci fisik belum kembali secured'];
         }
     }
 
@@ -367,8 +367,8 @@ function getRoomOperationalBlockersMap(PDO $pdo, array $roomNumbers): array {
     foreach($stmt->fetchAll(PDO::FETCH_ASSOC)?:[] as $row){$aid=trim((string)($row['alert_id']??''));if($aid!=='')$reviewAlertIds[$aid]=true;if(strtolower((string)$row['status'])==='open')$append($map,(string)$row['room_number'],['type'=>'maintenance_review','id'=>(string)$row['id'],'status'=>'open','message'=>'pembatalan maintenance belum direview Manager/Admin']);}
 
     $blockingKeyRooms=[];
-    $stmt=$pdo->prepare("SELECT room_number,physical_key_status FROM room_access_control WHERE room_number IN ({$ph}) AND access_mode IN ('physical','hybrid') AND physical_key_status IN ('issued','missing','override') ORDER BY room_number");$stmt->execute($numbers);
-    foreach($stmt->fetchAll(PDO::FETCH_ASSOC)?:[] as $row){$room=(string)$row['room_number'];$blockingKeyRooms[$room]=true;$status=strtolower((string)$row['physical_key_status']);$append($map,$room,['type'=>'physical_key','id'=>$room,'status'=>$status,'message'=>$status==='missing'?'kunci fisik belum ditemukan/diamankan':'register kunci fisik belum kembali secured']);}
+    $stmt=$pdo->prepare("SELECT room_number,physical_key_status,current_booking_id FROM room_access_control WHERE room_number IN ({$ph}) AND access_mode IN ('physical','hybrid') AND physical_key_status IN ('issued','missing','override') ORDER BY room_number");$stmt->execute($numbers);
+    foreach($stmt->fetchAll(PDO::FETCH_ASSOC)?:[] as $row){$room=(string)$row['room_number'];$blockingKeyRooms[$room]=true;$status=strtolower((string)$row['physical_key_status']);$append($map,$room,['type'=>'physical_key','id'=>$room,'status'=>$status,'bookingId'=>(string)($row['current_booking_id']??''),'message'=>$status==='missing'?'kunci fisik belum ditemukan/diamankan':'register kunci fisik belum kembali secured']);}
 
     $sources=[];$sourceToRoom=[];foreach($numbers as $room){foreach(['lost-found:'.$room,'room-damage:'.$room,'maintenance-cancelled:'.$room,'key-missing:'.$room] as $source){$sources[]=$source;$sourceToRoom[$source]=$room;}}
     $sph=implode(',',array_fill(0,count($sources),'?'));$stmt=$pdo->prepare("SELECT id,source FROM system_alerts WHERE acknowledged_at IS NULL AND source IN ({$sph}) ORDER BY source,created_at,id");$stmt->execute($sources);$alerts=$stmt->fetchAll(PDO::FETCH_ASSOC)?:[];
@@ -424,9 +424,16 @@ function tamasyaDeriveRoomOperationalStatus(array $blockers): string {
  * suppress new reservation inventory until their own resolver completes.
  */
 function tamasyaReservationInventoryBlockers(array $blockers): array {
-    return array_values(array_filter($blockers,static function($blocker): bool {
+    $active=[];
+    foreach($blockers as $b)if(($b['type']??'')==='active_booking')$active[(string)$b['id']]=true;
+    return array_values(array_filter($blockers,static function($blocker) use($active): bool {
         $type=strtolower(trim((string)($blocker['type']??'')));
-        return !in_array($type,['active_booking','housekeeping'],true);
+        if(in_array($type,['active_booking','housekeeping'],true))return false;
+        // A normally issued key belongs to the current stay, not future inventory.
+        // Only ignore it when its register is bound to that same active booking.
+        // Missing/override/orphan keys still require their domain resolver.
+        if($type==='physical_key'&&($blocker['status']??'')==='issued'&&isset($active[(string)($blocker['bookingId']??'')]))return false;
+        return true;
     }));
 }
 

@@ -24,8 +24,9 @@ function tamasyaMultiRoomTelegramDetail(PDO $pdo,array $actor,string $id,int $pa
 }
 function tamasyaMultiRoomTelegramPicker(array $ctx,int $page=1): array {
     $rows=$ctx['availableRooms'];$page=max(1,min($page,max(1,(int)ceil(count($rows)/12))));$buttons=[];
-    foreach(array_slice($rows,($page-1)*12,12) as $r){$selected=isset($ctx['selected'][$r['number']]);$buttons[]=[['text'=>($selected?'✅ ':'▫️ ').'Kamar '.$r['number'].' · '.$r['type'],'callback_data'=>'mr_select:'.$r['number'].':'.$ctx['nonce']]];}
+    foreach(array_slice($rows,($page-1)*12,12) as $r){$selected=isset($ctx['selected'][$r['number']]);$buttons[]=[['text'=>($selected?'✅ ':'▫️ ').'Kamar '.$r['number'].' · '.$r['type'].(($r['available']??true)===false?' · ⚠️ cek tanggal':''),'callback_data'=>'mr_select:'.$r['number'].':'.$ctx['nonce']]];}
     $nav=[];if($page>1)$nav[]=['text'=>'←','callback_data'=>'mr_page:'.($page-1).':'.$ctx['nonce']];if($page*12<count($rows))$nav[]=['text'=>'→','callback_data'=>'mr_page:'.($page+1).':'.$ctx['nonce']];if($nav)$buttons[]=$nav;
+    if($ctx['lifecycleIntent']==='reserve')$buttons[]=[['text'=>'📅 Ubah tanggal reservasi','callback_data'=>'mr_dates:'.$ctx['nonce']]];
     $buttons[]=[['text'=>'Lanjut · '.count($ctx['selected']).' kamar','callback_data'=>'mr_next:'.$ctx['nonce']]];$buttons[]=[['text'=>'Batalkan','callback_data'=>'main_menu']];
     return ['text'=>"🏨 *PILIH BEBERAPA KAMAR*\n\n".tamasyaTelegramPlainText($ctx['guestName'])."\n".$ctx['checkIn'].' → '.$ctx['checkOut']."\n\nTekan kamar untuk memilih/melepasnya. Pilihan mengikuti tanggal di atas, bukan status terisi saat ini. Ketersediaan diperiksa kembali saat simpan.\nDipilih: ".implode(', ',array_keys($ctx['selected'])),'markup'=>['inline_keyboard'=>$buttons]];
 }
@@ -45,7 +46,7 @@ function tamasyaMultiRoomTelegramDatesPrompt(): string {
 }
 function tamasyaMultiRoomTelegramConfirm(PDO $pdo,array $actor,array $ctx): array {
     tamasyaMultiRoomTelegramState($pdo,$actor,'waiting_mr_confirm',$ctx);$total=array_sum(array_column($ctx['selected'],'totalAmount'));
-    $text="🏨 *KONFIRMASI RESERVASI GRUP*\n\n".tamasyaTelegramPlainText($ctx['guestName'])."\n".$ctx['checkIn'].' → '.$ctx['checkOut']."\n";
+    $text=($ctx['lifecycleIntent']==='reserve'?"📅 *KONFIRMASI RESERVASI BEBERAPA KAMAR*\n\n":"🏨 *KONFIRMASI CHECK-IN LANGSUNG BEBERAPA KAMAR*\n\n").tamasyaTelegramPlainText($ctx['guestName'])."\n".$ctx['checkIn'].' → '.$ctx['checkOut']."\n";
     foreach($ctx['selected'] as $r)$text.='• '.$r['roomNumber'].' · '.tamasyaTelegramPlainText($r['guestName']?:$ctx['guestName']).' · Rp '.tamasyaTelegramFormatAmount($r['totalAmount'])."\n";
     $text.='Sumber: '.tamasyaTelegramPlainText($ctx['bookingSource'])."\n";
     $text.="\nTagihan: ".$ctx['billingMode'].($ctx['billingMode']==='split'?' · master '.$ctx['routedPercent'].'%':'')."\nTotal termasuk PBJT: Rp ".tamasyaTelegramFormatAmount($total)."\nPembayaran: BELUM BAYAR. DP/pelunasan diterima lewat tombol Pembayaran grup setelah tersimpan.\n".($ctx['lifecycleIntent']==='check_in_now'?'Kamar akan langsung check-in.':'Kamar masih reservasi; belum dianggap menginap.');
@@ -60,7 +61,7 @@ function tamasyaMultiRoomTelegramCallback(PDO $pdo,array $actor,string $callback
     if($command==='mr_start'){
         $intent=$parts[1]??'reserve';if(!in_array($intent,['reserve','check_in_now'],true))throw new InvalidArgumentException('Pilihan grup tidak valid.');
         $ctx=['flow'=>'multi-room','nonce'=>bin2hex(random_bytes(8)),'expiresAt'=>time()+1800,'lifecycleIntent'=>$intent,'selected'=>[]];tamasyaMultiRoomTelegramState($pdo,$actor,'waiting_mr_name',$ctx);
-        return ['text'=>'👤 Ketik nama pemesan utama untuk beberapa kamar.','markup'=>['inline_keyboard'=>[[['text'=>'Batalkan','callback_data'=>'main_menu']]]]];
+        return ['text'=>($intent==='reserve'?'📅 RESERVASI: pesanan untuk tanggal menginap, tanpa mengubah kamar/tamu yang sedang terisi.':'🏨 CHECK-IN LANGSUNG: tamu masuk sekarang dan kamar harus siap.').' Ketik nama pemesan utama.','markup'=>['inline_keyboard'=>[[['text'=>'Batalkan','callback_data'=>'main_menu']]]]];
     }
     if($command==='mr_add'){$d=tamasyaMultiRoomDetail($pdo,$parts[1]??'');if(in_array($d['lifecycle']['status'],['completed','cancelled'],true))throw new RuntimeException('Grup sudah selesai.');$g=$d['group'];$ctx=['flow'=>'multi-room','nonce'=>bin2hex(random_bytes(8)),'expiresAt'=>time()+1800,'lifecycleIntent'=>'reserve','selected'=>[],'groupId'=>$g['id'],'guestName'=>$g['name'],'guestPhone'=>$g['contact']['phone']??'','bookingSource'=>$g['contact']['bookingSource']??'Direct','billingMode'=>$g['billing_mode'],'routedPercent'=>$g['contact']['routedPercent']??0];tamasyaMultiRoomTelegramState($pdo,$actor,'waiting_mr_dates',$ctx);return ['text'=>'Ketik tanggal masuk dan keluar untuk kamar tambahan: YYYY-MM-DD YYYY-MM-DD.','markup'=>null];}
     if($command==='mr_pay'){$d=tamasyaMultiRoomDetail($pdo,$parts[1]??'');$ctx=['flow'=>'multi-room','nonce'=>bin2hex(random_bytes(8)),'expiresAt'=>time()+900,'groupId'=>$d['group']['id'],'date'=>date('Y-m-d')];tamasyaMultiRoomTelegramState($pdo,$actor,'waiting_mr_payment_amount',$ctx);return ['text'=>'💰 Ketik nominal uang yang benar-benar diterima. Sisa grup: Rp '.tamasyaTelegramFormatAmount($d['totals']['balance']),'markup'=>['inline_keyboard'=>[[['text'=>'Batalkan','callback_data'=>'main_menu']]]]];}
@@ -74,11 +75,19 @@ function tamasyaMultiRoomTelegramCallback(PDO $pdo,array $actor,string $callback
         tamasyaMultiRoomTelegramState($pdo,$actor,'waiting_mr_dates',$ctx);
         return ['text'=>tamasyaMultiRoomTelegramDatesPrompt(),'markup'=>null];
     }
+    if($command==='mr_dates'){
+        if($state!=='waiting_mr_rooms'||$ctx['lifecycleIntent']!=='reserve')throw new RuntimeException('Tanggal hanya dapat diubah pada pemilihan kamar reservasi.');
+        tamasyaMultiRoomTelegramState($pdo,$actor,'waiting_mr_dates',$ctx);
+        return ['text'=>tamasyaMultiRoomTelegramDatesPrompt().' Pilihan kamar tetap disimpan.','markup'=>null];
+    }
     if(in_array($command,['mr_select','mr_page','mr_next'],true)){
         if($state!=='waiting_mr_rooms')throw new RuntimeException('Pemilihan kamar sudah selesai. Mulai ulang untuk mengubah kamar.');
         if($command==='mr_select'){$number=$parts[1]??'';$found=null;foreach($ctx['availableRooms'] as $r)if((string)$r['number']===$number)$found=$r;if(!$found)throw new RuntimeException('Kamar tidak ada pada pilihan yang diperiksa.');if(isset($ctx['selected'][$number]))unset($ctx['selected'][$number]);else{if(count($ctx['selected'])>=50)throw new InvalidArgumentException('Maksimal 50 kamar per grup.');$ctx['selected'][$number]=['roomNumber'=>$number,'guestName'=>'','totalAmount'=>$found['totalAmount']];}tamasyaMultiRoomTelegramState($pdo,$actor,$state,$ctx);return tamasyaMultiRoomTelegramPicker($ctx);}
         if($command==='mr_page')return tamasyaMultiRoomTelegramPicker($ctx,(int)($parts[1]??1));
-        if(!$ctx['selected'])throw new InvalidArgumentException('Pilih minimal satu kamar.');tamasyaMultiRoomTelegramState($pdo,$actor,'waiting_mr_occupants',$ctx);
+        if(!$ctx['selected'])throw new InvalidArgumentException('Pilih minimal satu kamar.');
+        $invalid=[];foreach($ctx['availableRooms'] as $room)if(isset($ctx['selected'][$room['number']])&&($room['available']??true)!==true)$invalid[]='Kamar '.$room['number'].': '.$room['reason'];
+        if($invalid){$reply=tamasyaMultiRoomTelegramPicker($ctx);$reply['text']="⚠️ Jadwal belum cocok. Ubah tanggal atau pilihan kamar.\n".implode("\n",array_slice($invalid,0,5))."\n\n".$reply['text'];return $reply;}
+        tamasyaMultiRoomTelegramState($pdo,$actor,'waiting_mr_occupants',$ctx);
         return ['text'=>"👥 Penghuni per kamar boleh berbeda. Ketik misalnya:\n`101=Andi; 102=Rudi`\n\nKetik `-` agar semua memakai nama pemesan. Nomor kamar mengikuti pilihan Anda.",'markup'=>null];
     }
     if($command==='mr_bill'){
@@ -115,7 +124,9 @@ function tamasyaMultiRoomTelegramMessage(PDO $pdo,array $actor,string $message):
     elseif($state==='waiting_mr_dates'){
         $parts=preg_split('/\s+/',$text);if(count($parts)!==2)throw new InvalidArgumentException('Ketik dua tanggal masuk dan keluar.');
         foreach($parts as &$date)if(preg_match('~^(\d{2})/(\d{2})/(\d{4})$~',$date,$m))$date=$m[3].'-'.$m[2].'-'.$m[1];unset($date);
-        $ctx['checkIn']=$parts[0];$ctx['checkOut']=$parts[1];$a=tamasyaMultiRoomAvailability($pdo,$actor,$ctx);$ctx['availableRooms']=array_values(array_filter($a['rooms'],static fn($r)=>$r['available']));if(!$ctx['availableRooms'])throw new RuntimeException('Tidak ada kamar tersedia untuk periode tersebut. Pilih tanggal lain.');$ctx['masterBillingAvailable']=$a['masterBillingAvailable'];$state='waiting_mr_rooms';tamasyaMultiRoomTelegramState($pdo,$actor,$state,$ctx);return tamasyaMultiRoomTelegramPicker($ctx);
+        $ctx['checkIn']=$parts[0];$ctx['checkOut']=$parts[1];$a=tamasyaMultiRoomAvailability($pdo,$actor,$ctx);$ctx['availableRooms']=$ctx['lifecycleIntent']==='reserve'?$a['rooms']:array_values(array_filter($a['rooms'],static fn($r)=>$r['available']));
+        $known=[];foreach($ctx['availableRooms'] as $room){$known[(string)$room['number']]=true;if(isset($ctx['selected'][$room['number']]))$ctx['selected'][$room['number']]['totalAmount']=$room['totalAmount'];}
+        foreach(array_keys($ctx['selected']) as $number)if(!isset($known[(string)$number]))unset($ctx['selected'][$number]);if(!$ctx['availableRooms'])throw new RuntimeException('Tidak ada kamar tersedia untuk periode tersebut. Pilih tanggal lain.');$ctx['masterBillingAvailable']=$a['masterBillingAvailable'];$state='waiting_mr_rooms';tamasyaMultiRoomTelegramState($pdo,$actor,$state,$ctx);return tamasyaMultiRoomTelegramPicker($ctx);
     }elseif($state==='waiting_mr_occupants'){
         if($text!=='-')foreach(explode(';',$text) as $part){$pair=explode('=',trim($part),2);if(count($pair)!==2||!isset($ctx['selected'][trim($pair[0])])||trim($pair[1])===''||tamasyaStringLength(trim($pair[1]))>150)throw new InvalidArgumentException('Isi nomor kamar=nama untuk kamar yang sudah dipilih.');$ctx['selected'][trim($pair[0])]['guestName']=trim($pair[1]);}
         if(!empty($ctx['groupId']))return tamasyaMultiRoomTelegramConfirm($pdo,$actor,$ctx);

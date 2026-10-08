@@ -2,7 +2,7 @@
  * Pure configuration + pure permission helpers. No DOM access and no React dependency.
  * This is the stable boundary for future domain/module extraction.
  */
-const TAMASYA_NAV_REGISTRY_VERSION = '20261008-r14-mrfix';
+const TAMASYA_NAV_REGISTRY_VERSION = '20261008-r15';
 
 const TAMASYA_DOMAIN_NAV = Object.freeze({
   frontoffice: Object.freeze({

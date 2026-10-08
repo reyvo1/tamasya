@@ -48,5 +48,19 @@ console.log('PASS exactly one named accessible multi-room modal with inner-panel
 
 assert.match(multiRoomSource,/h\('select',\{[^}]+value:customSource/,'Booking source is a real dropdown with custom entry');
 assert.match(multiRoomSource,/Nama sumber lain/,'Configured and typed sources remain available');
-assert.match(multiRoomSource,/room\.currentStatus==='booked'/,'Future-selectable occupied rooms explain their present status');
+assert.match(multiRoomSource,/booked:'Terisi saat ini'/,'Future-selectable occupied rooms explain their present status');
 console.log('PASS multi-room explicit source selection and date-based occupied inventory labels.');
+
+const mergeSource=multiRoomSource.slice(multiRoomSource.indexOf('export function tamasyaMultiRoomMergeSelection'),multiRoomSource.indexOf('export function TamasyaMultiRoomPanel')).replace('export ','');
+const merge=runInContext(mergeSource+';tamasyaMultiRoomMergeSelection',createContext({}));
+const row={guestName:'Guest',dp:'100',method:'qris',bank:'bank',totalAmount:1000};
+let result=merge({'14':row},[{number:'14',available:null,totalAmount:null,currentStatus:'booked'}],'reserve');
+assert.equal(result['14'].totalAmount,1000);assert.equal(result['14'].guestName,'Guest');
+result=merge(result,[{number:'14',available:false,totalAmount:2000,currentStatus:'booked'}],'reserve');
+assert.equal(result['14'].totalAmount,2000);assert.equal(result['14'].dp,'100');assert.equal(result['14'].method,'qris');assert.equal(result['14'].bank,'bank');
+assert.equal(merge({'14':{...row,manualPrice:true}},[{number:'14',available:true,totalAmount:2000}],'reserve')['14'].totalAmount,1000);
+assert.equal(Object.keys(merge({'14':row},[{number:'14',available:false,totalAmount:2000}],'check_in_now')).length,0);
+assert.match(multiRoomSource,/disabled:intent==='check_in_now'&&room\.available!==true/);
+assert.match(multiRoomSource,/from:mode==='reserve'\?'':today\(\)/);
+assert.match(multiRoomSource,/controller\.abort\(\)/);
+console.log('PASS reservation selections survive date changes and present occupancy; check-in requires physical readiness.');

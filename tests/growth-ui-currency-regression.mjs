@@ -7,9 +7,10 @@ const check=async(name,fn)=>{await fn();passed++;console.log('PASS '+name);};
 const window={TAMASYA_RUNTIME_CONFIG:{features:{growthSuiteEnabled:true},propertyTimezone:'Asia/Makassar'}};
 vm.runInNewContext(read('assets/currency-display.js'),{window,Intl,Number});
 const money=window.TamasyaCurrencyDisplay;
-await check('Rupiah display preserves cents consistently without changing the source number',()=>{
- for(const [value,expected] of [[4640000.3,'Rp 4.640.000,30'],[4640000,'Rp 4.640.000'],[0,'Rp 0'],[-2641000.3,'Rp -2.641.000,30'],[.3,'Rp 0,30'],[110000.30000004,'Rp 110.000,30'],[1.9999999999,'Rp 2']])assert.equal(money.formatRupiah(value),expected);
+await check('Rupiah UI rounds whole rupiah without changing the source amount; exact view retains cents',()=>{
+ for(const [value,expected] of [[4640000.3,'Rp 4.640.000'],[4640000,'Rp 4.640.000'],[0,'Rp 0'],[-2641000.3,'Rp -2.641.000'],[.3,'Rp 0'],[110000.30000004,'Rp 110.000'],[1.9999999999,'Rp 2']])assert.equal(money.formatRupiah(value),expected);
  for(const value of [null,undefined,'',NaN,Infinity,'nonsense'])assert.equal(money.formatRupiah(value),'—');
+ assert.equal(money.formatRupiahExact(4640000.3),'Rp 4.640.000,30');assert.equal(money.formatRupiahExact(.3),'Rp 0,30');assert.equal(money.formatRupiah(-.3),'Rp 0');
  const row={amount:4640000.3};money.formatRupiah(row.amount);assert.equal(row.amount,4640000.3);
 });
 const storage=new Map([['hotel_logged_in','true'],['hotel_staff_role','owner'],['hotel_session_token','session'],['hotel_offline_hotel_scope','hotel-a']]);
@@ -20,7 +21,7 @@ let source=read('assets/chunks/growth-widgets.js').replace(/import\s*\{f,t\}\s*f
 vm.runInNewContext(source+';this.api={money,tamasyaGrowthPlansForRoom,tamasyaGrowthStayNights,tamasyaGrowthBookingUrl,tamasyaGrowthRead,useGrowthRead,TamasyaGrowthKpiPanel,TamasyaGrowthRateSuggestion,TamasyaGrowthBookingLinks};',context);
 const api=context.api;
 await check('Rate quote uses its plan currency and explicitly identifies the nightly check-in tariff',()=>{
- assert.equal(api.money(250000.3,'IDR'),'Rp 250.000,30');
+ assert.equal(api.money(250000.3,'IDR'),'Rp 250.000');
  const usd=api.money(250000.3,'USD');assert.ok(usd.includes('US$'));assert.ok(usd.includes('250.000,30'));assert.ok(!usd.includes('Rp'));
  assert.ok(source.includes('Tarif paket per malam untuk tanggal check-in.'));assert.ok(source.includes("money(rate.rate,rate.plan?.currency||'IDR')"));
 });

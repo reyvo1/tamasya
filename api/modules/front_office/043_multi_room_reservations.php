@@ -54,6 +54,14 @@ function tamasyaMultiRoomConflictLabel(array $conflict): string {
     $status=($conflict['status']??'')==='active'?'tamu menginap':'reservasi lain';
     return 'Bentrok dengan '.$status.': '.$from.' → '.($to>='9999-01-01'?'belum ada tanggal checkout':$to).'. Pilih periode di luar jadwal ini.';
 }
+/** Date-free planning catalog; physical status never disables room selection. */
+function tamasyaMultiRoomCatalog(PDO $pdo,array $actor): array {
+    tamasyaMultiRoomRequire($pdo,$actor);
+    $rows=$pdo->query('SELECT number,type,floor,price FROM rooms ORDER BY floor,number')->fetchAll(PDO::FETCH_ASSOC)?:[];
+    $statuses=tamasyaRoomOperationalStatusMap($pdo,array_column($rows,'number'));
+    $rooms=[];foreach($rows as $room)$rooms[]=['number'=>$room['number'],'type'=>$room['type'],'floor'=>$room['floor'],'baseRate'=>(float)$room['price'],'totalAmount'=>null,'available'=>null,'currentStatus'=>$statuses[(string)$room['number']]??'maintenance','reason'=>'Pilih periode menginap untuk memeriksa bentrok.'];
+    return ['rooms'=>$rooms,'bookingSources'=>tamasyaMultiRoomBookingSources($pdo),'companies'=>tamasyaEnterpriseFetchAll($pdo,"SELECT id,name FROM growth_companies WHERE status='active' ORDER BY name"),'masterBillingAvailable'=>tamasyaEnterpriseModuleEnabled('folio')&&tamasyaEnterpriseSchemaReady($pdo)];
+}
 function tamasyaMultiRoomAvailability(PDO $pdo,array $actor,array $input): array {
     tamasyaMultiRoomRequire($pdo,$actor);$from=trim((string)($input['checkIn']??''));$to=trim((string)($input['checkOut']??''));
     if(!validIsoDate($from)||!validIsoDate($to)||$to<=$from||$from<date('Y-m-d'))throw new InvalidArgumentException('Pilih tanggal masuk hari ini/mendatang dan tanggal keluar setelahnya.');
@@ -62,16 +70,27 @@ function tamasyaMultiRoomAvailability(PDO $pdo,array $actor,array $input): array
     $settings=$pdo->query("SELECT * FROM hotel_operational_settings WHERE id='system_default'")->fetch(PDO::FETCH_ASSOC)?:[];
     $window=resolveHotelBookingStayWindow(['checkIn'=>$from,'checkOut'=>$to,'stayMode'=>'overnight','isOpenEnded'=>0],(string)($settings['checkout_time']??'12:00:00'),(string)($settings['checkin_time']??'14:00:00'));
     $nights=(int)(new DateTimeImmutable($from))->diff(new DateTimeImmutable($to))->days;$out=[];
-    foreach($pdo->query('SELECT * FROM rooms ORDER BY floor,number')->fetchAll(PDO::FETCH_ASSOC) as $room){
-        $error='';$blockers=getRoomOperationalBlockers($pdo,(string)$room['number'],false);$currentStatus=tamasyaDeriveRoomOperationalStatus($blockers);try{
-            $conflict=tamasyaR3FindStayWindowConflict($pdo,'',(string)$room['number'],$window['startAt'],$window['endAt'],false);
+    $rooms=$pdo->query('SELECT number,type,floor,price FROM rooms ORDER BY floor,number')->fetchAll(PDO::FETCH_ASSOC)?:[];
+    $blockersByRoom=getRoomOperationalBlockersMap($pdo,array_column($rooms,'number'));
+    $byRoom=[];
+    $candidates=$pdo->query("SELECT id,roomNumber,status,checkIn,checkOut,isOpenEnded,stayMode,scheduledCheckInAt,scheduledCheckOutAt,actualCheckInAt,actualCheckOutAt,checkoutDueAt FROM bookings WHERE status IN ('reserved','active') ORDER BY roomNumber,checkIn,scheduledCheckInAt,id")->fetchAll(PDO::FETCH_ASSOC)?:[];
+    foreach($candidates as $b)$byRoom[(string)$b['roomNumber']][]=$b;
+    $rate=resolveConfiguredTaxRate($pdo,$bookingSource,'room',null,$from);
+    foreach($rooms as $room){
+        $number=(string)$room['number'];$error='';$blockers=$blockersByRoom[$number]??[];$currentStatus=tamasyaDeriveRoomOperationalStatus($blockers);
+        try{
+            $conflict=tamasyaR3StayWindowConflictInRows($byRoom[$number]??[],$window['startAt'],$window['endAt'],(string)($settings['checkout_time']??'12:00:00'),(string)($settings['checkin_time']??'14:00:00'));
             if($conflict)throw new RuntimeException(tamasyaMultiRoomConflictLabel($conflict));
-            if($intent==='check_in_now'){if($from!==date('Y-m-d'))throw new RuntimeException('Check-in langsung wajib pada tanggal hotel hari ini.');if($currentStatus!=='available')throw new RuntimeException(roomOperationalBlockerMessage((string)$room['number'],$blockers));}
-            else{$blockers=tamasyaReservationInventoryBlockers($blockers);if($blockers)throw new RuntimeException(roomOperationalBlockerMessage((string)$room['number'],$blockers));}
-        }catch(PDOException $e){throw $e;}catch(RuntimeException|InvalidArgumentException $e){$error=clientExceptionMessage('Kamar tidak tersedia',$e);}
-        $rate=resolveConfiguredTaxRate($pdo,$bookingSource,'room',null,$from);
+            if($intent==='check_in_now'){
+                if($from!==date('Y-m-d'))throw new RuntimeException('Check-in langsung wajib pada tanggal hotel hari ini.');
+                if($currentStatus!=='available')throw new RuntimeException(roomOperationalBlockerMessage($number,$blockers));
+            }else{
+                $inventoryBlockers=tamasyaReservationInventoryBlockers($blockers);
+                if($inventoryBlockers)throw new RuntimeException(roomOperationalBlockerMessage($number,$inventoryBlockers));
+            }
+        }catch(RuntimeException|InvalidArgumentException $e){$error=clientExceptionMessage('Kamar tidak tersedia',$e);}
         $total=tamasyaPublishedRoomGrossTotal((float)$room['price'],$nights,(float)$rate);
-        $out[]=['number'=>$room['number'],'type'=>$room['type'],'floor'=>$room['floor'],'available'=>$error==='','reason'=>$error,'currentStatus'=>$currentStatus,'baseRate'=>(float)$room['price'],'totalAmount'=>$total];
+        $out[]=['number'=>$room['number'],'type'=>$room['type'],'floor'=>$room['floor'],'available'=>$error==='','reason'=>$error,'currentStatus'=>$currentStatus,'baseRate'=>(float)$room['price'],'taxRate'=>(float)$rate,'totalAmount'=>$total];
     }
     return ['rooms'=>$out,'bookingSources'=>tamasyaMultiRoomBookingSources($pdo),'companies'=>tamasyaEnterpriseFetchAll($pdo,"SELECT id,name FROM growth_companies WHERE status='active' ORDER BY name"),'masterBillingAvailable'=>tamasyaEnterpriseModuleEnabled('folio')&&tamasyaEnterpriseSchemaReady($pdo)];
 }

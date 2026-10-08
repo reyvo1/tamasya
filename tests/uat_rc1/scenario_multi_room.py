@@ -42,6 +42,13 @@ _,availability=call('Availability uses existing inventory','availability',query=
 _,invalid_period=call('Invalid period rejected','availability',query={'checkIn':str(future),'checkOut':str(future)},expected=(422,));check('Invalid-period rejection preserves date rule','tanggal keluar setelahnya' in invalid_period.get('error',''))
 # The same physical room can be occupied now and reserved for a non-overlapping date.
 occupied_gid,occupied=must_create('Today active inventory fixture',payload([rooms[15]],start=today,lifecycleIntent='check_in_now'))
+active_id=occupied['bookings'][0]['id']
+if not db("SELECT id FROM shift_sessions WHERE status='open'"):
+ s,b=request('operations-center','POST',{'command':'shift-open','openingCash':100000,'shiftTime':'siang','notes':'Issued key future reservation UAT'},run+'_key_shift');check('Shift before actual key issue',s==200 and b.get('success') is True)
+s,b=request('operations-center','POST',{'command':'key-issue','bookingId':active_id,'reason':'Current guest issued physical key UAT'},run+'_key_issue');check('Actual active guest receives physical key',s==200 and b.get('success') is True,b.get('error'))
+active_before=db('SELECT * FROM bookings WHERE id=?',[active_id]);key_before=db('SELECT * FROM room_access_control WHERE room_number=?',[rooms[15]])
+check('Key fixture is issued and bound to active guest',key_before and key_before[0]['physical_key_status']=='issued' and key_before[0]['current_booking_id']==active_id)
+_,catalog=call('Date free planning catalog','catalog',query={});cr=next(r for r in catalog['data']['rooms'] if r['number']==rooms[15]);check('Planning catalog shows occupied room without asserting future availability',cr['available'] is None and cr['totalAmount'] is None and cr['currentStatus']=='booked')
 _,future_av=call('Future availability includes occupied room','availability',query={'checkIn':str(today+datetime.timedelta(days=1)),'checkOut':str(today+datetime.timedelta(days=2)),'bookingSource':'Traveloka'})
 fr=next(r for r in future_av['data']['rooms'] if r['number']==rooms[15]);check('Occupied room is selectable after checkout with explicit current status',fr['available'] and fr['currentStatus']=='booked',fr)
 check('Availability exposes specific booking source choices','Traveloka' in future_av['data']['bookingSources'] and 'Direct' in future_av['data']['bookingSources'] and 'OTA' not in future_av['data']['bookingSources'])
@@ -49,6 +56,11 @@ future_occupied,future_detail=must_create('Reserve occupied room after checkout'
 check('Future reservation preserves OTA and does not check guest in',future_detail['bookings'][0]['status']=='reserved' and future_detail['bookings'][0]['bookingSource']=='Traveloka' and db('SELECT status FROM bookings WHERE id=?',[occupied['bookings'][0]['id']])[0]['status']=='active')
 _,today_av=call('Today availability still rejects occupied overlap','availability',query={'checkIn':str(today),'checkOut':str(today+datetime.timedelta(days=1))})
 tr=next(r for r in today_av['data']['rooms'] if r['number']==rooms[15]);check('Actual overlap shows dates instead of opaque booking id',not tr['available'] and str(today) in tr['reason'] and str(today+datetime.timedelta(days=1)) in tr['reason'] and occupied['bookings'][0]['id'] not in tr['reason'],tr)
+check('Future reservation does not alter current guest or issued key',db('SELECT * FROM bookings WHERE id=?',[active_id])==active_before and db('SELECT * FROM room_access_control WHERE room_number=?',[rooms[15]])==key_before)
+before=counts();call('Occupied room cannot become new immediate check-in','create',payload([rooms[15]],start=today,lifecycleIntent='check_in_now'),expected=(409,422));check('Rejected immediate check-in leaves inventory and cash unchanged',counts()==before)
+# Single-room creation obeys the same issued-key and canonical interval rule.
+s,b=request('bookings','POST',{'roomNumber':rooms[15],'guestName':'Single Future','checkIn':str(today+datetime.timedelta(days=4)),'checkOut':str(today+datetime.timedelta(days=5)),'bookingSource':'Direct','totalAmount':220000,'paymentStatus':'unpaid','lifecycleIntent':'reserve'},run+'_single_future');check('Single room future reservation matches group issued-key rule',s==200 and b.get('success') is True,b.get('error'))
+check('Single future reservation also preserves occupied guest and key',db('SELECT * FROM bookings WHERE id=?',[active_id])==active_before and db('SELECT * FROM room_access_control WHERE room_number=?',[rooms[15]])==key_before)
 # Ambiguous OTA is not allowed to masquerade as a named source.
 before=counts();call('Generic OTA source rejected','create',payload([rooms[14]],bookingSource='OTA'),expected=(409,422));check('Rejected ambiguous source leaves no parent children cash',counts()==before)
 # DP, all channels and exact cents.
@@ -104,6 +116,18 @@ def button(b,prefix,needle=None):
    cmd=token[0]['callback_data'] if token else raw
    if cmd.startswith(prefix) and (needle is None or needle in cmd):return raw
  raise RuntimeError('Expected Telegram button absent '+prefix+' '+str(needle))
+# Reservation wizard can plan an occupied room and correct dates without losing selection.
+tg('reserve_start','mr_start:reserve');tg('reserve_name','TG Future Primary',False);tg('reserve_phone','-',False);reserve_picker=tg('reserve_source','Direct',False);reserve_picker=tg('reserve_conflict_dates',str(today)+' '+str(today+datetime.timedelta(days=1)),False)
+for page in range(1,100):
+ try:occupied_button=button(reserve_picker,'mr_select:',rooms[15]);break
+ except RuntimeError:reserve_picker=tg('reserve_page_'+str(page+1),button(reserve_picker,'mr_page:'+str(page+1)+':'))
+else:raise RuntimeError('Occupied room absent from reservation planning picker')
+reserve_picker=tg('reserve_choose_occupied',occupied_button);warning=tg('reserve_conflict_next',button(reserve_picker,'mr_next:'))
+check('Reservation conflict warns and stays in planning instead of checking guest in','Jadwal belum cocok' in warning.get('message',{}).get('text','') and db('SELECT telegram_state FROM staff WHERE id=?',[admin['id']])[0]['telegram_state']=='waiting_mr_rooms')
+tg('reserve_change_dates',button(warning,'mr_dates:'));reserve_picker=tg('reserve_future_dates',str(today+datetime.timedelta(days=2))+' '+str(today+datetime.timedelta(days=3)),False)
+ctx=json.loads(db('SELECT telegram_context FROM staff WHERE id=?',[admin['id']])[0]['telegram_context']);check('Telegram date changes retain the occupied room choice',rooms[15] in ctx['selected'] and next(r for r in ctx['availableRooms'] if r['number']==rooms[15])['available'])
+tg('reserve_next',button(reserve_picker,'mr_next:'));reserve_bill=tg('reserve_occupants','-',False);reserve_confirm=tg('reserve_individual',button(reserve_bill,'mr_bill:individual:'));check('Telegram confirmation clearly says reservation not check-in','KONFIRMASI RESERVASI BEBERAPA KAMAR' in reserve_confirm.get('message',{}).get('text',''))
+tg('reserve_save',button(reserve_confirm,'mr_confirm:'));reserve_ctx=json.loads(db('SELECT telegram_context FROM staff WHERE id=?',[admin['id']])[0]['telegram_context']);_,reserve_detail=call('Telegram future reservation detail','detail',query={'id':reserve_ctx['groupId']});check('Telegram future group saves reserved while current guest and key stay untouched',reserve_detail['data']['bookings'][0]['status']=='reserved' and db('SELECT * FROM bookings WHERE id=?',[active_id])==active_before and db('SELECT * FROM room_access_control WHERE room_number=?',[rooms[15]])==key_before)
 main_menu=tg('discover_main_menu','main_menu');group_entry=button(main_menu,'mr_start:reserve');tg('discover_group_entry',group_entry)
 tg('direct_group_command','/reservasi_grup',False);check('Direct group command starts same canonical wizard',db('SELECT telegram_state FROM staff WHERE id=?',[admin['id']])[0]['telegram_state']=='waiting_mr_name')
 tg('start','mr_start:check_in_now');tg('primary','TG Multi Primary',False);source_menu=tg('phone','-',False);source_button=button(source_menu,'mr_source:2:');tg('source_choice',source_button);check('Telegram specific OTA button persists channel in wizard',json.loads(db('SELECT telegram_context FROM staff WHERE id=?',[admin['id']])[0]['telegram_context'])['bookingSource']=='Traveloka');tg('stale_source_choice',source_button);check('Old source callback cannot change subsequent wizard state',db('SELECT telegram_state FROM staff WHERE id=?',[admin['id']])[0]['telegram_state']=='waiting_mr_dates');picker=tg('dates',str(today)+' '+str(today+datetime.timedelta(days=1)),False)

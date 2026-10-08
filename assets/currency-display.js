@@ -1,13 +1,11 @@
-/* Display only: never changes transaction values, tax, journal or export numbers. */
+/* UI rounds IDR to whole rupiah; exact helpers and stored money retain cents. */
 (function(root){
-  'use strict';
-  function formatNumber(value){
-    if(value===null||value===undefined||value===''||!Number.isFinite(Number(value)))return '—';
-    const amount=Number(value),fixed=amount.toFixed(2);
-    // Decide decimal visibility after display rounding, avoiding floating-point tails.
-    const fraction=!fixed.endsWith('.00');
-    return new Intl.NumberFormat('id-ID',{minimumFractionDigits:fraction?2:0,maximumFractionDigits:2}).format(amount);
-  }
-  function formatRupiah(value){const formatted=formatNumber(value);return formatted==='—'?formatted:'Rp '+formatted;}
-  root.TamasyaCurrencyDisplay=Object.freeze({formatNumber,formatRupiah});
+ 'use strict';
+ const whole=new Intl.NumberFormat('id-ID',{maximumFractionDigits:0}),exact=new Intl.NumberFormat('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2});
+ function formatNumber(value,precise=false){
+  if(value===null||value===undefined||value===''||!Number.isFinite(Number(value)))return '—';
+  let text=(precise?exact:whole).format(Number(value));if(precise)text=text.replace(/,00$/,'');return text==='-0'?'0':text;
+ }
+ function formatRupiah(value,precise=false){const text=formatNumber(value,precise);return text==='—'?text:'Rp '+text;}
+ root.TamasyaCurrencyDisplay=Object.freeze({formatNumber,formatRupiah,formatNumberExact:v=>formatNumber(v,true),formatRupiahExact:v=>formatRupiah(v,true)});
 })(window);

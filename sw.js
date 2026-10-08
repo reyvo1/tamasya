@@ -1,16 +1,16 @@
 // TAMASYA V137 canonical service worker. Fresh multi-property baseline.
 const APP_SCOPE = new URL(self.registration.scope);
 const CACHE_PREFIX = `tamasya-cache-${encodeURIComponent(APP_SCOPE.pathname)}-`;
-const CACHE_NAME = `${CACHE_PREFIX}20261008-r14-mrfix`;
+const CACHE_NAME = `${CACHE_PREFIX}20261008-r15`;
 const matchAppCache = (request) => caches.open(CACHE_NAME).then((cache) => cache.match(request));
 const STATIC_CACHE_DESTINATIONS = new Set(["script", "style", "image", "font", "manifest", "worker"]);
 
 const ASSETS_TO_CACHE = [
-  "./assets/growth-widgets.css?v=20261008-r14-mrfix",
-  "./assets/currency-display.js?v=20261008-r14-mrfix",
-  "./assets/chunks/growth-widgets.js?v=20261008-r14-mrfix",
-  "./assets/owner-readonly-policy.js?v=20261008-r14-mrfix",
-  "./assets/owner-readonly.css?v=20261008-r14-mrfix",
+  "./assets/growth-widgets.css?v=20261008-r15",
+  "./assets/currency-display.js?v=20261008-r15",
+  "./assets/chunks/growth-widgets.js?v=20261008-r15",
+  "./assets/owner-readonly-policy.js?v=20261008-r15",
+  "./assets/owner-readonly.css?v=20261008-r15",
   "./",
   "./index.html",
   "./icon.svg",
@@ -23,44 +23,44 @@ const ASSETS_TO_CACHE = [
   "./property-setup.html",
   "./assets/notification-settings-addon.js?v=20260814-perf-config1",
   "./assets/api-operation-guard.js?v=20260914-r4-3-operation-retry",
-  "./assets/canonical-business-policy.js?v=20261008-r14-mrfix",
+  "./assets/canonical-business-policy.js?v=20261008-r15",
   "./assets/finance-category-usage-picker.js?v=20260817-r7-setup-finance-mapping-ux-fix20",
-  "./assets/runtime-addon-loader.js?v=20261008-r14-mrfix",
-  "./assets/app-core.js?v=20261008-r14-mrfix",
-  "./assets/sw-register.js?v=20261008-r14-mrfix",
-  "./assets/navigation-registry.js?v=20261008-r14-mrfix",
-  "./assets/chunks/vendor-react.js?v=20261008-r14-mrfix",
-  "./assets/chunks/app-shared.js?v=20261008-r14-mrfix",
-  "./assets/chunks/app-shell.js?v=20261008-r14-mrfix",
-  "./assets/chunks/feature-shared.js?v=20261008-r14-mrfix",
-  "./assets/chunks/dashboard.js?v=20261008-r14-mrfix",
-  "./assets/chunks/rooms.js?v=20261008-r14-mrfix",
-  "./assets/chunks/booking-negotiation.js?v=20261008-r14-mrfix",
+  "./assets/runtime-addon-loader.js?v=20261008-r15",
+  "./assets/app-core.js?v=20261008-r15",
+  "./assets/sw-register.js?v=20261008-r15",
+  "./assets/navigation-registry.js?v=20261008-r15",
+  "./assets/chunks/vendor-react.js?v=20261008-r15",
+  "./assets/chunks/app-shared.js?v=20261008-r15",
+  "./assets/chunks/app-shell.js?v=20261008-r15",
+  "./assets/chunks/feature-shared.js?v=20261008-r15",
+  "./assets/chunks/dashboard.js?v=20261008-r15",
+  "./assets/chunks/rooms.js?v=20261008-r15",
+  "./assets/chunks/booking-negotiation.js?v=20261008-r15",
   // PERF(offline-ops-1): chunk modul jarang-dipakai tidak lagi diprecache saat
   // install (menghemat ~410 KB pada first load). Semua chunk tetap di-cache saat
   // pertama kali dibuka lewat runtime cache di bawah sehingga offline tetap bekerja.
-  "./assets/property-branding.js?v=20261008-r14-mrfix",
-  "./assets/property-setup.css?v=20261008-r14-mrfix",
+  "./assets/property-branding.js?v=20261008-r15",
+  "./assets/property-setup.css?v=20261008-r15",
   "./assets/property-setup.js?v=20260818-r7-booking-draft-room-scope-fix27",
   "./assets/property-setup-guard.js?v=20260810-v137",
   "./assets/app-core.css?v=20260829-fix37-scrollbar-clip",
-  "./assets/pos-minibar.css?v=20261008-r14-mrfix",
-  "./assets/pos-business-date-policy.js?v=20261008-r14-mrfix",
-  "./assets/pos-minibar.js?v=20261008-r14-mrfix",
-  "./assets/internal-memo.css?v=20261008-r14-mrfix",
+  "./assets/pos-minibar.css?v=20261008-r15",
+  "./assets/pos-business-date-policy.js?v=20261008-r15",
+  "./assets/pos-minibar.js?v=20261008-r15",
+  "./assets/internal-memo.css?v=20261008-r15",
   "./assets/internal-memo.js",
   "./assets/master-data-workspace.js?v=20260821-audit16-prelock-observer-scope",
-  "./assets/ui-core.js?v=20261008-r14-mrfix",
-  "./assets/flexible-maintenance-addon.js?v=20261008-r14-mrfix",
+  "./assets/ui-core.js?v=20261008-r15",
+  "./assets/flexible-maintenance-addon.js?v=20261008-r15",
   "./assets/date-display-id.js?v=20260829-fix39-refsafe",
-  "./assets/ui-core.css?v=20261008-r14-mrfix",
-  "./assets/responsive-polish.css?v=20261008-r14-mrfix",
-  "./assets/chunks/viewport-layer.js?v=20261008-r14-mrfix",
-  "./assets/growth-suite.css?v=20261008-r14-mrfix",
-  "./assets/growth-suite.js?v=20261008-r14-mrfix",
-  "./assets/enterprise-suite.js?v=20261008-r14-mrfix",
-  "./assets/multi-property-foundation.css?v=20261008-r14-mrfix",
-  "./assets/multi-property-foundation.js?v=20261008-r14-mrfix"
+  "./assets/ui-core.css?v=20261008-r15",
+  "./assets/responsive-polish.css?v=20261008-r15",
+  "./assets/chunks/viewport-layer.js?v=20261008-r15",
+  "./assets/growth-suite.css?v=20261008-r15",
+  "./assets/growth-suite.js?v=20261008-r15",
+  "./assets/enterprise-suite.js?v=20261008-r15",
+  "./assets/multi-property-foundation.css?v=20261008-r15",
+  "./assets/multi-property-foundation.js?v=20261008-r15"
 ];
 
 function responseCanBeCached(response) {
