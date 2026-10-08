@@ -3,6 +3,7 @@ import json, sys
 
 base=Path(__file__).resolve().parent
 requirements={
+    'multi-room-results.json': 80,
     'enterprise-full-workforce-inventory-results.json': 12,
     'enterprise-full-public-journey-results.json': 10,
     'enterprise-full-operational-results.json': 12,

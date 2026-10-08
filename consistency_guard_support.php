@@ -14,7 +14,7 @@ if (!defined('TAMASYA_CONSISTENCY_GUARD_VERSION')) {
     define('TAMASYA_CONSISTENCY_GUARD_VERSION', 'R4_5_FINANCE_20260915');
 }
 if (!defined('TAMASYA_BUILD_ID')) {
-    define('TAMASYA_BUILD_ID', '20261007-growth-kpi-r13');
+    define('TAMASYA_BUILD_ID', '20261008-multiroom-r14');
 }
 
 function tamasyaConsistencyGuardTableExists(PDO $pdo, string $table): bool {

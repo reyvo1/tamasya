@@ -68,6 +68,7 @@ jobs:
           node tests/finance-cash-tax-regression.mjs
           php tests/booking-negotiation-regression.php
           php tests/growth-kpi-regression.php
+          php tests/multi-room-regression.php
           php tests/telegram-charge-payment-regression.php
           php tests/telegram-shift-regression.php
           php tests/finance-regression.php
@@ -718,6 +719,12 @@ jobs:
           set -euo pipefail
           python3 scenario_telegram.py
           python3 scenario_telegram_parity_complete.py
+
+      - name: Multi-room atomic booking billing Telegram and storage UAT
+        working-directory: tests/uat_rc1
+        run: |
+          set -euo pipefail
+          python3 scenario_multi_room.py
 
       - name: Browser desktop and mobile control UAT
         run: |

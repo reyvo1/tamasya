@@ -38,5 +38,7 @@
  "107_enterprise_completion.php": "growth_enterprise_locked",
  "108_hybrid_architecture.php": "setup_admin",
  "109_hybrid_outbox.php": "setup_admin",
- "110_daily_summary.php": "finance"
+ "110_daily_summary.php": "finance",
+ "043_multi_room_reservations.php": "front_office",
+ "044_multi_room_telegram.php": "front_office"
 }

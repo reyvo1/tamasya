@@ -35,7 +35,7 @@ test('Owner primary menu preset ignores old deny flags and write capability over
  assert.equal(perms.readOnly,true);assert.equal(perms.desktopTabs.finance,true);assert.equal(perms.capabilities.manage_backup,false);assert.equal(perms.capabilities.approve_sensitive_actions,false);assert.equal(perms.capabilities.view_audit_log,true);
 });
 test('Shared policy and styling load before clients and are precached for offline Owner',()=>{
- const policyUrl='./assets/owner-readonly-policy.js?v=20261007-growth-kpi-r13';const cssUrl='./assets/owner-readonly.css?v=20261007-growth-kpi-r13';
+ const policyUrl='./assets/owner-readonly-policy.js?v=20261008-multiroom-r14';const cssUrl='./assets/owner-readonly.css?v=20261008-multiroom-r14';
  for(const file of ['index.html','pos.html','growth-suite.html','enterprise-suite.html','internal-memo.html','property-setup.html','multi-property-foundation.html']){
   const html=read(file);assert.ok(html.includes(policyUrl),file);assert.ok(html.includes(cssUrl),file);assert.ok(html.indexOf('<meta charset')<html.indexOf(policyUrl),file);
   const otherScript=html.indexOf('<script',html.indexOf(policyUrl)+policyUrl.length);assert.ok(otherScript<0||html.indexOf(policyUrl)<otherScript,file);

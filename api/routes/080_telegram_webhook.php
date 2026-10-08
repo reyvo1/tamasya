@@ -791,6 +791,10 @@ Daftar diambil langsung dari sesi server yang masih berstatus OPEN. Pilih shift 
                         $allowedCallback = in_array($callbackRole,['admin','manager'],true);
                     } elseif (in_array($callbackData,$financeCallbacks,true) || $matchesPrefix($callbackData,$financePrefixes)) {
                         $allowedCallback = in_array($callbackRole,['admin','manager','finance'],true);
+                    } elseif ($callbackData==='mr_list'||str_starts_with($callbackData,'mr_detail:')) {
+                        $allowedCallback=in_array($callbackRole,['admin','manager','receptionist','finance','owner'],true);
+                    } elseif (str_starts_with($callbackData,'mr_')) {
+                        $allowedCallback=in_array($callbackRole,['admin','manager','receptionist'],true);
                     } elseif (in_array($callbackData,$reservationCallbacks,true) || $matchesPrefix($callbackData,$reservationPrefixes)) {
                         $allowedCallback = in_array($callbackRole,['admin','manager','receptionist'],true);
                     } elseif (in_array($callbackData,$vacancyCallbacks,true) || $matchesPrefix($callbackData,$vacancyPrefixes)) {
@@ -847,7 +851,10 @@ Daftar diambil langsung dari sesi server yang masih berstatus OPEN. Pilih shift 
                 // jalur binding adalah kode sekali pakai `/bind KODE` yang diklaim
                 // transaksional dan mengikat Telegram User ID ke satu staff aktif.
                 $isLoginAction = false;
-                if (str_starts_with($callbackData,'support_reply:')) {
+                if(str_starts_with($callbackData,'mr_')) {
+                    try{$groupReply=tamasyaMultiRoomTelegramCallback($pdo,$loggedInStaff,$callbackData,$telegramCallbackOperationId);$replyText=$groupReply['text'];$replyMarkup=$groupReply['markup'];$alertText='Reservasi grup';}
+                    catch(Throwable $e){$replyText=clientExceptionMessage('Grup belum diproses',$e);$alertText='Periksa kembali';}
+                } elseif (str_starts_with($callbackData,'support_reply:')) {
                     $publicCode=trim((string)substr($callbackData,strlen('support_reply:')));
                     if(!preg_match('/^SUP-[A-Za-z0-9-]{8,64}$/',$publicCode)){
                         $replyText="⚠️ *PERCAKAPAN TIDAK VALID*\n\nTombol balas tidak lagi memiliki ID percakapan yang valid.";
@@ -928,12 +935,14 @@ Nomor kamar operasional hanya ditampilkan setelah akun staf terhubung.";
                     $buttons=[[[ 'text'=>'📊 Cek Kamar','callback_data'=>'room_status_menu' ]]];
                     if(in_array($callbackRole,['admin','manager','receptionist'],true)){
                         $buttons[]=[['text'=>'📅 Reservasi','callback_data'=>'reservation_list'],['text'=>'🛒 Jual Kamar','callback_data'=>'sell_room_list']];
+                        if(tamasyaGrowthModuleEnabled('group'))$buttons[]=[['text'=>'Reservasi Beberapa Kamar','callback_data'=>'mr_start:reserve'],['text'=>'Check-in Beberapa Kamar','callback_data'=>'mr_start:check_in_now']];
                         $buttons[]=[['text'=>'🔎 Diagnosa Kamar','callback_data'=>'room_list']];
                         $buttons[]=[['text'=>'⏳ Perpanjang','callback_data'=>'booking_extend_menu'],['text'=>'🛠️ Tambah Layanan','callback_data'=>'booking_service_menu']];
                         $buttons[]=[['text'=>'🔄 Pindah Kamar','callback_data'=>'booking_transfer_menu'],['text'=>'🚪 Check-out','callback_data'=>'booking_checkout_menu']];
                     }
                     if(in_array($callbackRole,['admin','manager','receptionist','finance'],true))$buttons[]=[['text'=>'🧾 Cetak Nota','callback_data'=>'receipt_menu']];
                     if(hasCapability($loggedInStaff,'view_guest_identity',['admin','manager','receptionist','keamanan']))$buttons[]=[['text'=>'🪪 Lihat KTP','callback_data'=>'guest_identity_menu']];
+                    if(tamasyaGrowthModuleEnabled('group')&&in_array($callbackRole,['admin','manager','receptionist','finance','owner'],true))$buttons[]=[['text'=>'Daftar Grup','callback_data'=>'mr_list']];
                     $buttons[]=[['text'=>'⬅️ Menu Utama','callback_data'=>'main_menu']];
                     $replyText="🛏️ *KAMAR & TAMU*\n\nPilih tindakan. Tombol yang mengubah data hanya ditampilkan untuk peran yang memang diizinkan server.";
                     $replyMarkup=['inline_keyboard'=>$buttons];$alertText='Kamar & Tamu';
@@ -4118,7 +4127,11 @@ Peran akun Anda tidak lagi berhak melanjutkan proses Telegram ini. State lama te
                 $currentState = $loggedInStaff['telegram_state'];
                 $currentCtx = $loggedInStaff['telegram_context'];
 
-                if ($currentState === 'waiting_for_support_reply') {
+                if(str_starts_with($currentState,'waiting_mr_')) {
+                    try{$groupReply=tamasyaMultiRoomTelegramMessage($pdo,$loggedInStaff,(string)$command);$replyText=$groupReply['text'];$replyMarkup=$groupReply['markup'];}
+                    catch(Throwable $e){$replyText=clientExceptionMessage('Langkah grup belum diproses',$e);}
+                    $stateProcessed=true;
+                } elseif ($currentState === 'waiting_for_support_reply') {
                     $ctx=json_decode((string)$currentCtx,true);if(!is_array($ctx))$ctx=[];
                     $publicCode=trim((string)($ctx['publicCode']??''));$expiresAt=(int)($ctx['expiresAt']??0);
                     if($expiresAt<=0||time()>$expiresAt){

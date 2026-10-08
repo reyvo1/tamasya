@@ -1,16 +1,16 @@
 // TAMASYA V137 canonical service worker. Fresh multi-property baseline.
 const APP_SCOPE = new URL(self.registration.scope);
 const CACHE_PREFIX = `tamasya-cache-${encodeURIComponent(APP_SCOPE.pathname)}-`;
-const CACHE_NAME = `${CACHE_PREFIX}20261007-growth-kpi-r13`;
+const CACHE_NAME = `${CACHE_PREFIX}20261008-multiroom-r14`;
 const matchAppCache = (request) => caches.open(CACHE_NAME).then((cache) => cache.match(request));
 const STATIC_CACHE_DESTINATIONS = new Set(["script", "style", "image", "font", "manifest", "worker"]);
 
 const ASSETS_TO_CACHE = [
-  "./assets/growth-widgets.css?v=20261007-growth-kpi-r13",
-  "./assets/currency-display.js?v=20261007-growth-kpi-r13",
-  "./assets/chunks/growth-widgets.js?v=20261007-growth-kpi-r13",
-  "./assets/owner-readonly-policy.js?v=20261007-growth-kpi-r13",
-  "./assets/owner-readonly.css?v=20261007-growth-kpi-r13",
+  "./assets/growth-widgets.css?v=20261008-multiroom-r14",
+  "./assets/currency-display.js?v=20261008-multiroom-r14",
+  "./assets/chunks/growth-widgets.js?v=20261008-multiroom-r14",
+  "./assets/owner-readonly-policy.js?v=20261008-multiroom-r14",
+  "./assets/owner-readonly.css?v=20261008-multiroom-r14",
   "./",
   "./index.html",
   "./icon.svg",
@@ -23,44 +23,44 @@ const ASSETS_TO_CACHE = [
   "./property-setup.html",
   "./assets/notification-settings-addon.js?v=20260814-perf-config1",
   "./assets/api-operation-guard.js?v=20260914-r4-3-operation-retry",
-  "./assets/canonical-business-policy.js?v=20261007-growth-kpi-r13",
+  "./assets/canonical-business-policy.js?v=20261008-multiroom-r14",
   "./assets/finance-category-usage-picker.js?v=20260817-r7-setup-finance-mapping-ux-fix20",
-  "./assets/runtime-addon-loader.js?v=20261007-growth-kpi-r13",
-  "./assets/app-core.js?v=20261007-growth-kpi-r13",
-  "./assets/sw-register.js?v=20261007-growth-kpi-r13",
-  "./assets/navigation-registry.js?v=20261007-growth-kpi-r13",
-  "./assets/chunks/vendor-react.js?v=20261007-growth-kpi-r13",
-  "./assets/chunks/app-shared.js?v=20261007-growth-kpi-r13",
-  "./assets/chunks/app-shell.js?v=20261007-growth-kpi-r13",
-  "./assets/chunks/feature-shared.js?v=20261007-growth-kpi-r13",
-  "./assets/chunks/dashboard.js?v=20261007-growth-kpi-r13",
-  "./assets/chunks/rooms.js?v=20261007-growth-kpi-r13",
-  "./assets/chunks/booking-negotiation.js?v=20261007-growth-kpi-r13",
+  "./assets/runtime-addon-loader.js?v=20261008-multiroom-r14",
+  "./assets/app-core.js?v=20261008-multiroom-r14",
+  "./assets/sw-register.js?v=20261008-multiroom-r14",
+  "./assets/navigation-registry.js?v=20261008-multiroom-r14",
+  "./assets/chunks/vendor-react.js?v=20261008-multiroom-r14",
+  "./assets/chunks/app-shared.js?v=20261008-multiroom-r14",
+  "./assets/chunks/app-shell.js?v=20261008-multiroom-r14",
+  "./assets/chunks/feature-shared.js?v=20261008-multiroom-r14",
+  "./assets/chunks/dashboard.js?v=20261008-multiroom-r14",
+  "./assets/chunks/rooms.js?v=20261008-multiroom-r14",
+  "./assets/chunks/booking-negotiation.js?v=20261008-multiroom-r14",
   // PERF(offline-ops-1): chunk modul jarang-dipakai tidak lagi diprecache saat
   // install (menghemat ~410 KB pada first load). Semua chunk tetap di-cache saat
   // pertama kali dibuka lewat runtime cache di bawah sehingga offline tetap bekerja.
-  "./assets/property-branding.js?v=20261007-growth-kpi-r13",
-  "./assets/property-setup.css?v=20261007-growth-kpi-r13",
+  "./assets/property-branding.js?v=20261008-multiroom-r14",
+  "./assets/property-setup.css?v=20261008-multiroom-r14",
   "./assets/property-setup.js?v=20260818-r7-booking-draft-room-scope-fix27",
   "./assets/property-setup-guard.js?v=20260810-v137",
   "./assets/app-core.css?v=20260829-fix37-scrollbar-clip",
-  "./assets/pos-minibar.css?v=20261007-growth-kpi-r13",
-  "./assets/pos-business-date-policy.js?v=20261007-growth-kpi-r13",
-  "./assets/pos-minibar.js?v=20261007-growth-kpi-r13",
-  "./assets/internal-memo.css?v=20261007-growth-kpi-r13",
+  "./assets/pos-minibar.css?v=20261008-multiroom-r14",
+  "./assets/pos-business-date-policy.js?v=20261008-multiroom-r14",
+  "./assets/pos-minibar.js?v=20261008-multiroom-r14",
+  "./assets/internal-memo.css?v=20261008-multiroom-r14",
   "./assets/internal-memo.js",
   "./assets/master-data-workspace.js?v=20260821-audit16-prelock-observer-scope",
-  "./assets/ui-core.js?v=20261007-growth-kpi-r13",
-  "./assets/flexible-maintenance-addon.js?v=20261007-growth-kpi-r13",
+  "./assets/ui-core.js?v=20261008-multiroom-r14",
+  "./assets/flexible-maintenance-addon.js?v=20261008-multiroom-r14",
   "./assets/date-display-id.js?v=20260829-fix39-refsafe",
-  "./assets/ui-core.css?v=20261007-growth-kpi-r13",
-  "./assets/responsive-polish.css?v=20261007-growth-kpi-r13",
-  "./assets/chunks/viewport-layer.js?v=20261007-growth-kpi-r13",
-  "./assets/growth-suite.css?v=20261007-growth-kpi-r13",
-  "./assets/growth-suite.js?v=20261007-growth-kpi-r13",
-  "./assets/enterprise-suite.js?v=20261007-growth-kpi-r13",
-  "./assets/multi-property-foundation.css?v=20261007-growth-kpi-r13",
-  "./assets/multi-property-foundation.js?v=20261007-growth-kpi-r13"
+  "./assets/ui-core.css?v=20261008-multiroom-r14",
+  "./assets/responsive-polish.css?v=20261008-multiroom-r14",
+  "./assets/chunks/viewport-layer.js?v=20261008-multiroom-r14",
+  "./assets/growth-suite.css?v=20261008-multiroom-r14",
+  "./assets/growth-suite.js?v=20261008-multiroom-r14",
+  "./assets/enterprise-suite.js?v=20261008-multiroom-r14",
+  "./assets/multi-property-foundation.css?v=20261008-multiroom-r14",
+  "./assets/multi-property-foundation.js?v=20261008-multiroom-r14"
 ];
 
 function responseCanBeCached(response) {

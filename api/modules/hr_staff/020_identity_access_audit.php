@@ -318,6 +318,7 @@ function writeEnterpriseAudit($pdo, $user, $action, $entityType = null, $entityI
 function writeRequiredEnterpriseAudit($pdo, $user, $action, $entityType = null, $entityId = null, $oldData = null, $newData = null, $source = 'web', array $options = []): void {
     $options['required'] = true;
     writeEnterpriseAudit($pdo, $user, $action, $entityType, $entityId, $oldData, $newData, $source, $options);
+    if(function_exists('tamasyaMultiRoomCollectEvent')&&$entityType==='booking')tamasyaMultiRoomCollectEvent($pdo,(string)$entityType,(string)$entityId,(string)$action);
 }
 
 /** Snapshot rekening pembayaran tanpa menyimpan nomor atau nama pemilik mentah. */

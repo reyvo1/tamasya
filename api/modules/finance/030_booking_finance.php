@@ -1576,8 +1576,9 @@ function signedTransactionTaxAmount($tx) {
  * retry setelah respons jaringan hilang tidak mengeksekusi booking kedua, dan
  * operation ID yang sama tidak dapat digunakan dengan payload/actor berbeda.
  */
-function tamasyaClaimCanonicalBookingReceipt(PDO $pdo, array $actor, string $operationId, string $channel, string $bookingId, array $payload): array {
-    if ($pdo->inTransaction()) throw new RuntimeException('Receipt booking wajib diklaim sebelum transaksi bisnis dimulai.');
+function tamasyaClaimCanonicalBookingReceipt(PDO $pdo, array $actor, string $operationId, string $channel, string $bookingId, array $payload, bool $joinTransaction=false, string $entityType='booking'): array {
+    if ($pdo->inTransaction()!==$joinTransaction) throw new RuntimeException('Batas transaksi receipt booking tidak sesuai.');
+    if(!in_array($entityType,['booking','growth_group'],true))throw new InvalidArgumentException('Jenis receipt booking tidak valid.');
     $operationId=trim($operationId);
     $staffId=trim((string)($actor['id']??''));
     $channel=strtolower(trim($channel));
@@ -1590,11 +1591,11 @@ function tamasyaClaimCanonicalBookingReceipt(PDO $pdo, array $actor, string $ope
     if($json===false)throw new RuntimeException('Payload booking tidak dapat dinormalisasi.');
     $payloadHash=hash('sha256',$json);
     try{
-        $pdo->beginTransaction();
+        if(!$joinTransaction)$pdo->beginTransaction();
         $insert=$pdo->prepare("INSERT IGNORE INTO sync_operations
             (operation_id,staff_id,device_id,entity_type,entity_id,action,payload_hash,status,result_json,created_at,processed_at)
-            VALUES (?,?,?,'booking',?,'create_booking',?,'processing',NULL,CURRENT_TIMESTAMP,NULL)");
-        $insert->execute([$operationId,$staffId,$deviceId,$bookingId,$payloadHash]);
+            VALUES (?,?,?,?,?,'create_booking',?,'processing',NULL,CURRENT_TIMESTAMP,NULL)");
+        $insert->execute([$operationId,$staffId,$deviceId,$entityType,$bookingId,$payloadHash]);
         $created=$insert->rowCount()===1;
         $select=$pdo->prepare("SELECT staff_id,device_id,entity_type,entity_id,action,payload_hash,status,result_json,created_at FROM sync_operations WHERE operation_id=? LIMIT 1 FOR UPDATE");
         $select->execute([$operationId]);
@@ -1602,37 +1603,37 @@ function tamasyaClaimCanonicalBookingReceipt(PDO $pdo, array $actor, string $ope
         if(!$row)throw new RuntimeException('Receipt booking tidak dapat dibaca setelah klaim.');
         $matches=hash_equals((string)$row['staff_id'],$staffId)
             && hash_equals((string)($row['device_id']??''),$deviceId)
-            && hash_equals((string)$row['entity_type'],'booking')
+            && hash_equals((string)$row['entity_type'],$entityType)
             && hash_equals((string)$row['entity_id'],$bookingId)
             && hash_equals((string)$row['action'],'create_booking')
             && hash_equals((string)($row['payload_hash']??''),$payloadHash);
         if(!$matches){
-            tamasyaFinancialCommit($pdo);
+            if(!$joinTransaction)tamasyaFinancialCommit($pdo);
             throw new RuntimeException('Operation ID booking sudah digunakan oleh actor, perangkat, atau payload berbeda.');
         }
-        if($created){tamasyaFinancialCommit($pdo);return ['state'=>'claimed','payloadHash'=>$payloadHash];}
+        if($created){if(!$joinTransaction)tamasyaFinancialCommit($pdo);return ['state'=>'claimed','payloadHash'=>$payloadHash];}
         $status=strtolower((string)($row['status']??'processing'));
         if($status==='processed'){
             $result=json_decode((string)($row['result_json']??''),true);
-            tamasyaFinancialCommit($pdo);
+            if(!$joinTransaction)tamasyaFinancialCommit($pdo);
             return ['state'=>'duplicate','payloadHash'=>$payloadHash,'result'=>is_array($result)?$result:[]];
         }
         if($status==='failed'){
             $retry=$pdo->prepare("UPDATE sync_operations SET status='processing',result_json=NULL,processed_at=NULL,created_at=CURRENT_TIMESTAMP WHERE operation_id=? AND status='failed'");
             $retry->execute([$operationId]);
-            if($retry->rowCount()===1){tamasyaFinancialCommit($pdo);return ['state'=>'claimed','payloadHash'=>$payloadHash,'retry'=>true];}
+            if($retry->rowCount()===1){if(!$joinTransaction)tamasyaFinancialCommit($pdo);return ['state'=>'claimed','payloadHash'=>$payloadHash,'retry'=>true];}
         }
         $createdAt=strtotime((string)($row['created_at']??''))?:time();
         if($status==='processing' && $createdAt<time()-600){
             $pdo->prepare("UPDATE sync_operations SET status='attention_required',result_json=?,processed_at=CURRENT_TIMESTAMP WHERE operation_id=? AND status='processing'")
                 ->execute([json_encode(['error'=>'Receipt booking lama belum mempunyai hasil terminal; rekonsiliasi manual wajib dilakukan.'],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),$operationId]);
-            tamasyaFinancialCommit($pdo);
+            if(!$joinTransaction)tamasyaFinancialCommit($pdo);
             throw new RuntimeException('Operation ID booking berada pada status tidak pasti dan wajib direkonsiliasi, bukan dieksekusi ulang.');
         }
-        tamasyaFinancialCommit($pdo);
+        if(!$joinTransaction)tamasyaFinancialCommit($pdo);
         throw new RuntimeException('Operation ID booking yang sama masih sedang diproses.');
     }catch(Throwable $e){
-        if($pdo->inTransaction())$pdo->rollBack();
+        if(!$joinTransaction&&$pdo->inTransaction())$pdo->rollBack();
         throw $e;
     }
 }
@@ -1668,15 +1669,15 @@ function tamasyaFailCanonicalBookingReceipt(PDO $pdo, string $operationId, Throw
  * ledger server, audit before/after, receipt operation ID, dan commit yang sama.
  * Panggilan Telegram eksternal baru dilakukan setelah commit.
  */
-function createCanonicalBookingWorkflow(PDO $pdo, array $actor, array $payload, string $channel, string $operationId): array {
+function createCanonicalBookingWorkflow(PDO $pdo, array $actor, array $payload, string $channel, string $operationId, bool $joinGroupTransaction=false): array {
     tamasyaRequirePropertyReadyForLiveMutation($pdo,'booking/check-in live');
-    if($pdo->inTransaction())throw new RuntimeException('Workflow booking pusat wajib memiliki transaksi database sendiri.');
+    if($pdo->inTransaction()!==$joinGroupTransaction)throw new RuntimeException('Batas transaksi workflow booking pusat tidak sesuai.');
     $channel=strtolower(trim($channel));
     if(!in_array($channel,['web','telegram','provider','offline-replay'],true))$channel='provider';
     $source=$channel==='offline-replay'?'offline-replay':$channel;
     $operationId=trim($operationId);
     $bookingId='b_op_'.substr(hash('sha256',$operationId),0,36);
-    $receipt=tamasyaClaimCanonicalBookingReceipt($pdo,$actor,$operationId,$channel,$bookingId,$payload);
+    $receipt=tamasyaClaimCanonicalBookingReceipt($pdo,$actor,$operationId,$channel,$bookingId,$payload,$joinGroupTransaction);
     if(($receipt['state']??'')==='duplicate')return ['duplicate'=>true]+(array)($receipt['result']??[]);
 
     $guestName=trim((string)($payload['guestName']??''));
@@ -1768,7 +1769,7 @@ function createCanonicalBookingWorkflow(PDO $pdo, array $actor, array $payload, 
     $financialMovement=$downPaymentAmount>0||$requestedPaymentStatus==='paid'||$securityDepositReceivedAmount>0;
     $telegramMessage='';
     try{
-        $pdo->beginTransaction();
+        if(!$joinGroupTransaction)$pdo->beginTransaction();
         $settings=$pdo->query("SELECT * FROM hotel_operational_settings WHERE id='system_default' LIMIT 1 FOR UPDATE")->fetch(PDO::FETCH_ASSOC)?:[];
         $blacklistMatch=null;
         if($guestPhone!==''||$guestEmail!==''){
@@ -2012,11 +2013,11 @@ function createCanonicalBookingWorkflow(PDO $pdo, array $actor, array $payload, 
             :"📅 *RESERVASI DIBUAT*\n\n👤 Tamu: *{$guestName}*\n🔑 Kamar: *{$roomNumber}* ({$roomType})\n🗓 Menginap: *{$checkIn}* s.d. *{$checkOut}*\n💳 Status: *".strtoupper((string)($final['paymentStatus']??'unpaid'))."*\n📡 Sumber: *{$bookingSource}*";
         $result=['bookingId'=>$bookingId,'bookingStatus'=>$lifecycleStatus,'stayMode'=>$stayMode,'scheduledCheckInAt'=>$scheduledCheckInAt,'scheduledCheckOutAt'=>$scheduledCheckOutAt,'paymentStatus'=>$final['paymentStatus']??'unpaid','amountPaid'=>(float)($final['amountPaid']??0),'balanceDue'=>(float)($final['balanceDue']??0),'roomNumber'=>$roomNumber,'roomType'=>$roomType,'totalAmount'=>$totalAmount,'vatRate'=>$vatRate,'vatAmount'=>$vatAmount,'transactionIds'=>$txIds,'operationId'=>$operationId,'lifecycleIntent'=>$lifecycleIntent,'securityDeposit'=>$securityDepositSummary,'telegramMessage'=>$telegramMessage];
         tamasyaCompleteCanonicalBookingReceipt($pdo,$operationId,$result);
-        tamasyaFinancialCommit($pdo);
-        if($broadcast&&$telegramMessage!=='')broadcastTelegramNotification($pdo,$telegramMessage);
+        if(!$joinGroupTransaction)tamasyaFinancialCommit($pdo);
+        if(!$joinGroupTransaction&&$broadcast&&$telegramMessage!=='')broadcastTelegramNotification($pdo,$telegramMessage);
         return ['duplicate'=>false]+$result;
     }catch(Throwable $e){
-        if($pdo->inTransaction())$pdo->rollBack();
+        if(!$joinGroupTransaction&&$pdo->inTransaction())$pdo->rollBack();
         tamasyaFailCanonicalBookingReceipt($pdo,$operationId,$e);
         throw $e;
     }

@@ -7,7 +7,7 @@
   if (window.__TAMASYA_RUNTIME_ADDON_LOADER__) return;
   window.__TAMASYA_RUNTIME_ADDON_LOADER__ = true;
 
-  const BUILD = '20261007-growth-kpi-r13';
+  const BUILD = '20261008-multiroom-r14';
   const resources = new Map();
   let firstRouteSeen = false;
 
@@ -81,7 +81,7 @@
 
   const loadGuestCenter = () => Promise.all([
     loadStyle('assets/guest-center.css?v=20260815-r7-reservation-root-sync-r3-workflow-root-r4-room-blocker-owner-r5&fix=20260816-ops-guest3'),
-    loadScript('assets/guest-center.js', '20261007-growth-kpi-r13')
+    loadScript('assets/guest-center.js', '20261008-multiroom-r14')
   ]);
   const loadEmployeeSelfService = () => Promise.all([
     loadStyle('assets/employee-self-service.css?v=20260826-fix34-drawerscroll'),

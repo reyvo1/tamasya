@@ -22,6 +22,8 @@
     "035_guest_security_deposits.php",
     "039_operational_domain_records.php",
     "040_rooms_checkout_housekeeping.php",
+    "043_multi_room_reservations.php",
+    "044_multi_room_telegram.php",
     "045_communication_core.php",
     "050_integrations_telegram_mail.php",
     "055_public_support_chat.php",

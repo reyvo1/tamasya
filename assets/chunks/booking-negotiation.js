@@ -1,5 +1,5 @@
-import {f,t} from '../app-core.js?v=20261007-growth-kpi-r13';
-import {Oc} from './app-shared.js?v=20261007-growth-kpi-r13';
+import {f,t} from '../app-core.js?v=20261008-multiroom-r14';
+import {Oc} from './app-shared.js?v=20261008-multiroom-r14';
 const money=value=>window.TamasyaCurrencyDisplay.formatNumber(value);
 async function requestPrice(bookingId,method='GET',payload=null){
   const suffix=payload&&method==='GET'?`&finalTotal=${encodeURIComponent(payload.finalTotal)}`:'';

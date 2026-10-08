@@ -14,9 +14,30 @@ if (!in_array((string)($action ?? ''), array (
   9 => 'operation-receipt-status',
   10 => 'room-transfers',
   11 => 'booking-negotiated-price',
+  12 => 'multi-room-bookings',
 ), true)) { return; }
 $routeHandled = true;
 switch ($action) {
+    case 'multi-room-bookings':
+        try {
+            $method=$_SERVER['REQUEST_METHOD'];$command=trim((string)($input['command']??$_GET['command']??($method==='GET'?'list':'create')));
+            tamasyaMultiRoomRequire($pdo,$loggedInStaff,$method!=='GET');
+            if($method==='GET'){
+                if($command==='availability')$data=tamasyaMultiRoomAvailability($pdo,$loggedInStaff,$_GET);
+                elseif($command==='detail')$data=tamasyaMultiRoomDetail($pdo,trim((string)($_GET['id']??'')));
+                elseif($command==='list')$data=tamasyaEnterpriseFetchAll($pdo,"SELECT g.id,g.group_code,g.name,g.arrival_date,g.departure_date,g.billing_mode,(SELECT COUNT(*) FROM growth_group_booking_links l WHERE l.group_id=g.id) booking_count FROM growth_group_reservations g ORDER BY g.created_at DESC LIMIT 200");
+                else throw new InvalidArgumentException('Pilihan reservasi grup tidak dikenal.');
+                echo tamasyaJsonEncode(['success'=>true,'data'=>$data]);
+            }elseif($method==='POST'){
+                $op=trim((string)($GLOBALS['tamasya_request_operation_id']??''));if($op==='')throw new DomainException('Operation ID wajib untuk reservasi grup.',428);
+                if($command==='create')echo tamasyaJsonEncode(['success'=>true]+tamasyaMultiRoomCreate($pdo,$loggedInStaff,$input,'web',$op));
+                elseif($command==='payment')echo tamasyaJsonEncode(['success'=>true]+tamasyaMultiRoomPayment($pdo,$loggedInStaff,$input,'web',$op));
+                elseif($command==='detach')echo tamasyaJsonEncode(['success'=>true]+tamasyaMultiRoomDetach($pdo,$loggedInStaff,$input,$op));
+                elseif($command==='edit')echo tamasyaJsonEncode(['success'=>true,'data'=>tamasyaMultiRoomEdit($pdo,$loggedInStaff,$input,'web',$op)]);
+                else throw new InvalidArgumentException('Pilihan reservasi grup tidak dikenal.');
+            }else{http_response_code(405);echo tamasyaJsonEncode(['success'=>false,'error'=>'Method Not Allowed']);}
+        }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();tamasyaApplyExceptionHttpStatus($e,422);echo tamasyaJsonEncode(['success'=>false,'error'=>clientExceptionMessage('Reservasi grup gagal',$e)]);}
+        break;
     case 'booking-negotiated-price':
         requireDesktopTabAccess($loggedInStaff,'rooms',['admin','manager','receptionist']);
         $method=$_SERVER['REQUEST_METHOD'];$id=trim((string)($input['bookingId']??($_GET['id']??'')));
@@ -1456,6 +1477,7 @@ switch ($action) {
                 throw new RuntimeException('Booking yang sudah selesai atau dibatalkan tidak boleh dibatalkan ulang.');
             }
 
+            if($status==='cancelled')tamasyaMultiRoomAssertCancellation($pdo,(string)$id);
             $roomNumber = (string)$booking['roomNumber'];
             $checkoutOperationId=trim((string)($input['operationId']??''))?:generateServerId('op_checkout_web');
             $keyReturned=!empty($input['keyReturned']);
@@ -1484,19 +1506,7 @@ switch ($action) {
             // Reservasi mendatang baru mengubah kondisi kamar saat check-in aktual.
             if ($status === 'active') {
                 tamasyaRuntimeSetStage('bookings-status:checkin_validate');
-                $checkinEligibility=tamasyaR3EvaluateCheckInEligibility($pdo,$loggedInStaff,$booking);
-                $checkinStayWindow=$checkinEligibility['stayWindow'];
-                $checkinUpdate=$pdo->prepare("UPDATE bookings SET status='active',actualCheckInAt=CURRENT_TIMESTAMP,checkoutDueAt=?,version=version+1,updatedBy=?,updatedSource='web' WHERE id=? AND status='reserved'");
-                $checkinUpdate->execute([$checkinStayWindow['checkoutDueAt'],(string)$loggedInStaff['id'],$id]);
-                if($checkinUpdate->rowCount()!==1)throw new RuntimeException('Status reservasi berubah sebelum check-in diselesaikan.');
-                tamasyaReconcileRoomOperationalProjection($pdo,$loggedInStaff,$roomNumber,'web-checkin');
-                $accessStmt=$pdo->prepare("SELECT access_mode FROM room_access_control WHERE room_number=? LIMIT 1 FOR UPDATE");
-                $accessStmt->execute([$roomNumber]);
-                $accessMode=(string)($accessStmt->fetchColumn() ?: ($booking['accessMode'] ?? 'physical'));
-                $pdo->prepare("UPDATE room_access_control SET current_booking_id=?,physical_key_status='secured',last_event_at=CURRENT_TIMESTAMP,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE room_number=?")
-                    ->execute([$id,(string)$loggedInStaff['id'],$roomNumber]);
-                tamasyaSyncGuestServiceBookingLifecycle($pdo,$loggedInStaff,(string)$id,'active',$roomNumber,'web-checkin');
-                logActivity($pdo,'booking_checkin','Reservasi '.$id.' check-in ke kamar '.$roomNumber,$loggedInStaff['id']??null,$loggedInStaff['name']??null);
+                tamasyaCanonicalReservedCheckInInTransaction($pdo,$loggedInStaff,$booking,'web');
             }
 
             // Pembatalan tidak memakai lifecycle checkout. Checkout final baru

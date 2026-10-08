@@ -87,6 +87,8 @@ $__f = tamasyaResolveDomainSupportFile('110_daily_summary.php'); if ($__f) { req
 $__f = tamasyaResolveDomainSupportFile('105_growth_suite.php'); if ($__f) { require_once $__f; } unset($__f);
 $__f = tamasyaResolveDomainSupportFile('106_multi_property_foundation.php'); if ($__f) { require_once $__f; } unset($__f);
 $__f = tamasyaResolveDomainSupportFile('107_enterprise_completion.php'); if ($__f) { require_once $__f; } unset($__f);
+require_once __DIR__.'/api/modules/front_office/043_multi_room_reservations.php';
+require_once __DIR__.'/api/modules/front_office/044_multi_room_telegram.php';
 
 require_once __DIR__ . '/api/modules/setup_admin/108_hybrid_architecture.php';
 require_once __DIR__ . '/api/modules/setup_admin/109_hybrid_outbox.php';
@@ -1201,6 +1203,7 @@ if ($loggedInStaff) {
     $actionDesktopTabs = [
         'booking-identity'=>['rooms'],
         'bookings'=>['rooms'],
+        'multi-room-bookings'=>['rooms'],
         'rooms'=>['rooms'],
         'room-transfers'=>['rooms'],
         'booking-payments'=>['rooms','finance'],

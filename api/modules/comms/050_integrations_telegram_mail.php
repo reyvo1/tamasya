@@ -667,6 +667,7 @@ function tamasyaQueueTelegramBroadcast(PDO $pdo, string $message, bool $isFinanc
 function broadcastTelegramNotification($pdo, $message, $isFinancial = false, $messageTypeOverride = '', $replyMarkup = null) {
     if (!tamasyaExternalSideEffectsAllowed()) return;
     $message=(string)$message;
+    if(function_exists('tamasyaMultiRoomDecorateBroadcast')){ $message=tamasyaMultiRoomDecorateBroadcast($pdo,$message);if($message===null)return; }
     if($message==='')return;
 
     $durableEnabled = strtolower(trim((string)(getenv('TAMASYA_DURABLE_TELEGRAM_BROADCAST') ?: '1'))) !== '0';
