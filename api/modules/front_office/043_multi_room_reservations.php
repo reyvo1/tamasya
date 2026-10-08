@@ -19,7 +19,7 @@ function tamasyaMultiRoomDetail(PDO $pdo,string $id): array {
     $group=tamasyaEnterpriseFetch($pdo,'SELECT * FROM growth_group_reservations WHERE id=?',[$id]);
     if(!$group)throw new InvalidArgumentException('Reservasi grup tidak ditemukan.');
     $meta=json_decode((string)($group['master_notes']??''),true);$group['contact']=is_array($meta)&&($meta['format']??'')==='multi-room-v1'?$meta:['notes'=>$group['master_notes']??''];
-    $children=tamasyaEnterpriseFetchAll($pdo,'SELECT l.id linkId,l.billing_mode,l.routed_percent,b.id,b.guestName,b.guestPhone,b.roomNumber,b.roomType,b.checkIn,b.checkOut,b.status,b.totalAmount,b.discountAmount,b.amountPaid,b.balanceDue,b.paymentStatus,b.version FROM growth_group_booking_links l JOIN bookings b ON b.id=l.booking_id WHERE l.group_id=? ORDER BY b.roomNumber,b.id',[$id]);
+    $children=tamasyaEnterpriseFetchAll($pdo,'SELECT l.id linkId,l.billing_mode,l.routed_percent,b.id,b.guestName,b.guestPhone,b.roomNumber,b.roomType,b.checkIn,b.checkOut,b.status,b.totalAmount,b.discountAmount,b.amountPaid,b.balanceDue,b.paymentStatus,b.bookingSource,b.version FROM growth_group_booking_links l JOIN bookings b ON b.id=l.booking_id WHERE l.group_id=? ORDER BY b.roomNumber,b.id',[$id]);
     $total=0;$paid=0;$balance=0;
     foreach($children as $b){$paid+=(float)$b['amountPaid'];$balance+=(float)$b['balanceDue'];if($b['status']!=='cancelled')$total+=max(0,(float)$b['totalAmount']-(float)$b['discountAmount']);}
     $folios=[];if(tamasyaEnterpriseModuleEnabled('folio')&&tamasyaEnterpriseSchemaReady($pdo)){
@@ -28,24 +28,52 @@ function tamasyaMultiRoomDetail(PDO $pdo,string $id): array {
     }
     return ['group'=>$group,'bookings'=>$children,'lifecycle'=>tamasyaMultiRoomStatus($children),'totals'=>['total'=>round($total,2),'paid'=>round($paid,2),'balance'=>round($balance,2)],'folios'=>$folios];
 }
+/** Booking source identifies the sales channel, independently of payment method. */
+function tamasyaMultiRoomNormalizeSource(string $source): string {
+    $source=trim($source);
+    if(!preg_match('/^.{1,100}$/us',$source)||preg_match('/[\x00-\x1F\x7F]/',$source))throw new InvalidArgumentException('Pilih sumber booking atau isi nama sumber lain (maksimal 100 karakter).');
+    if(strtolower($source)==='ota')throw new InvalidArgumentException('Pilih nama OTA, misalnya Traveloka/Agoda; OTA bukan nama sumber booking.');
+    return $source;
+}
+function tamasyaMultiRoomSourceOptions(array $rules): array {
+    $options=['Direct','Website','Traveloka','Booking.com','Tiket.com','Agoda','Airbnb'];
+    $seen=array_fill_keys(array_map('strtolower',$options),true);
+    foreach($rules as $rule){
+        $source=trim((string)($rule['source_pattern']??''));$key=strtolower($source);
+        if($key===''||$key==='*'||$key==='ota'||isset($seen[$key]))continue;
+        try{$source=tamasyaMultiRoomNormalizeSource($source);}catch(InvalidArgumentException $e){continue;}
+        $options[]=$source;$seen[$key]=true;
+    }
+    return $options;
+}
+function tamasyaMultiRoomBookingSources(PDO $pdo): array {
+    return tamasyaMultiRoomSourceOptions($pdo->query("SELECT source_pattern FROM tax_rules WHERE is_active=1 AND transaction_kind IN ('room','*') ORDER BY priority DESC,id")->fetchAll(PDO::FETCH_ASSOC)?:[]);
+}
+function tamasyaMultiRoomConflictLabel(array $conflict): string {
+    $from=(string)($conflict['_resolvedStartAt']??'');$to=(string)($conflict['_resolvedEndAt']??'');
+    $status=($conflict['status']??'')==='active'?'tamu menginap':'reservasi lain';
+    return 'Bentrok dengan '.$status.': '.$from.' → '.($to>='9999-01-01'?'belum ada tanggal checkout':$to).'. Pilih periode di luar jadwal ini.';
+}
 function tamasyaMultiRoomAvailability(PDO $pdo,array $actor,array $input): array {
     tamasyaMultiRoomRequire($pdo,$actor);$from=trim((string)($input['checkIn']??''));$to=trim((string)($input['checkOut']??''));
     if(!validIsoDate($from)||!validIsoDate($to)||$to<=$from||$from<date('Y-m-d'))throw new InvalidArgumentException('Pilih tanggal masuk hari ini/mendatang dan tanggal keluar setelahnya.');
+    $bookingSource=tamasyaMultiRoomNormalizeSource((string)($input['bookingSource']??'Direct'));
     $intent=(string)($input['lifecycleIntent']??'reserve');if(!in_array($intent,['reserve','check_in_now'],true))throw new InvalidArgumentException('Jenis reservasi tidak valid.');
     $settings=$pdo->query("SELECT * FROM hotel_operational_settings WHERE id='system_default'")->fetch(PDO::FETCH_ASSOC)?:[];
     $window=resolveHotelBookingStayWindow(['checkIn'=>$from,'checkOut'=>$to,'stayMode'=>'overnight','isOpenEnded'=>0],(string)($settings['checkout_time']??'12:00:00'),(string)($settings['checkin_time']??'14:00:00'));
     $nights=(int)(new DateTimeImmutable($from))->diff(new DateTimeImmutable($to))->days;$out=[];
     foreach($pdo->query('SELECT * FROM rooms ORDER BY floor,number')->fetchAll(PDO::FETCH_ASSOC) as $room){
-        $error='';try{
-            tamasyaR3AssertStayWindowNoOverlap($pdo,'',(string)$room['number'],$window['startAt'],$window['endAt'],false);
-            if($intent==='check_in_now'){if($from!==date('Y-m-d'))throw new RuntimeException('Check-in langsung wajib pada tanggal hotel hari ini.');$blockers=getRoomOperationalBlockers($pdo,(string)$room['number'],false);if(tamasyaDeriveRoomOperationalStatus($blockers)!=='available')throw new RuntimeException(roomOperationalBlockerMessage((string)$room['number'],$blockers));}
-            else{$blockers=tamasyaReservationInventoryBlockers(getRoomOperationalBlockers($pdo,(string)$room['number'],false));if($blockers)throw new RuntimeException(roomOperationalBlockerMessage((string)$room['number'],$blockers));}
+        $error='';$blockers=getRoomOperationalBlockers($pdo,(string)$room['number'],false);$currentStatus=tamasyaDeriveRoomOperationalStatus($blockers);try{
+            $conflict=tamasyaR3FindStayWindowConflict($pdo,'',(string)$room['number'],$window['startAt'],$window['endAt'],false);
+            if($conflict)throw new RuntimeException(tamasyaMultiRoomConflictLabel($conflict));
+            if($intent==='check_in_now'){if($from!==date('Y-m-d'))throw new RuntimeException('Check-in langsung wajib pada tanggal hotel hari ini.');if($currentStatus!=='available')throw new RuntimeException(roomOperationalBlockerMessage((string)$room['number'],$blockers));}
+            else{$blockers=tamasyaReservationInventoryBlockers($blockers);if($blockers)throw new RuntimeException(roomOperationalBlockerMessage((string)$room['number'],$blockers));}
         }catch(PDOException $e){throw $e;}catch(RuntimeException|InvalidArgumentException $e){$error=clientExceptionMessage('Kamar tidak tersedia',$e);}
-        $rate=resolveConfiguredTaxRate($pdo,(string)($input['bookingSource']??'Direct'),'room',null,$from);
+        $rate=resolveConfiguredTaxRate($pdo,$bookingSource,'room',null,$from);
         $total=tamasyaPublishedRoomGrossTotal((float)$room['price'],$nights,(float)$rate);
-        $out[]=['number'=>$room['number'],'type'=>$room['type'],'floor'=>$room['floor'],'available'=>$error==='','reason'=>$error,'baseRate'=>(float)$room['price'],'totalAmount'=>$total];
+        $out[]=['number'=>$room['number'],'type'=>$room['type'],'floor'=>$room['floor'],'available'=>$error==='','reason'=>$error,'currentStatus'=>$currentStatus,'baseRate'=>(float)$room['price'],'totalAmount'=>$total];
     }
-    return ['rooms'=>$out,'companies'=>tamasyaEnterpriseFetchAll($pdo,"SELECT id,name FROM growth_companies WHERE status='active' ORDER BY name"),'masterBillingAvailable'=>tamasyaEnterpriseModuleEnabled('folio')&&tamasyaEnterpriseSchemaReady($pdo)];
+    return ['rooms'=>$out,'bookingSources'=>tamasyaMultiRoomBookingSources($pdo),'companies'=>tamasyaEnterpriseFetchAll($pdo,"SELECT id,name FROM growth_companies WHERE status='active' ORDER BY name"),'masterBillingAvailable'=>tamasyaEnterpriseModuleEnabled('folio')&&tamasyaEnterpriseSchemaReady($pdo)];
 }
 function tamasyaMultiRoomSplitCents(float $amount,array $weights): array {
     if(!is_finite($amount)||$amount<0||$amount>1000000000000||!$weights)throw new InvalidArgumentException('Nominal pembagian tidak valid.');
@@ -120,7 +148,7 @@ function tamasyaMultiRoomCreate(PDO $pdo,array $actor,array $input,string $chann
         if($g){$detail=tamasyaMultiRoomDetail($pdo,$id);if($detail['bookings']&&in_array($detail['lifecycle']['status'],['completed','cancelled'],true))throw new RuntimeException('Grup selesai/dibatalkan tidak dapat ditambah kamar.');$mode=$g['billing_mode'];$meta=$detail['group']['contact'];if(($meta['format']??'')!=='multi-room-v1')throw new RuntimeException('Tambahkan booking pada grup lama melalui penautan di Growth.');$name=$g['name'];$pct=(float)($meta['routedPercent']??($mode==='master'?100:0));}
         else{
             $company=trim((string)($input['companyId']??''));if($company!==''&&!tamasyaEnterpriseFetch($pdo,"SELECT id FROM growth_companies WHERE id=? AND status='active' FOR UPDATE",[$company]))throw new InvalidArgumentException('Perusahaan tidak aktif/tidak ditemukan.');
-            $meta=['format'=>'multi-room-v1','phone'=>trim((string)($input['guestPhone']??'')),'email'=>trim((string)($input['guestEmail']??'')),'notes'=>trim((string)($input['notes']??'')),'routedPercent'=>$pct,'bookingSource'=>trim((string)($input['bookingSource']??'Direct'))];
+            $meta=['format'=>'multi-room-v1','phone'=>trim((string)($input['guestPhone']??'')),'email'=>trim((string)($input['guestEmail']??'')),'notes'=>trim((string)($input['notes']??'')),'routedPercent'=>$pct,'bookingSource'=>tamasyaMultiRoomNormalizeSource((string)($input['bookingSource']??'Direct'))];
             if($meta['email']!==''&&!filter_var($meta['email'],FILTER_VALIDATE_EMAIL))throw new InvalidArgumentException('Email pemesan tidak valid.');
             $code='GRP-'.date('Ymd').'-'.strtoupper(substr(hash('sha256',$op),0,8));
             $pdo->prepare("INSERT INTO growth_group_reservations(id,group_code,company_id,name,arrival_date,departure_date,room_block_qty,status,billing_mode,master_notes,operation_id,created_by,updated_by) VALUES (?,?,?,?,?,?,?,'confirmed',?,?,?,?,?)")->execute([$id,$code,$company?:null,$name,$from,$to,count($rows),$mode,tamasyaJsonEncode($meta),$op,$actor['id'],$actor['id']]);
@@ -147,6 +175,7 @@ function tamasyaMultiRoomTelegramSummary(array $data,string $event): string {
     $g=$data['group'];$text='🏨 *'.tamasyaTelegramPlainText($event)."*\n\n".tamasyaTelegramPlainText($g['name']).' · '.tamasyaTelegramPlainText($g['group_code'])."\n";
     foreach(array_slice($data['bookings'],0,25) as $b)$text.='• '.tamasyaTelegramPlainText($b['roomNumber']).' · '.tamasyaTelegramPlainText(function_exists('mb_substr')?mb_substr($b['guestName'],0,48):substr($b['guestName'],0,48)).' · '.tamasyaTelegramPlainText($b['status'])."\n";
     if(count($data['bookings'])>25)$text.='… '.(count($data['bookings'])-25)." kamar lain tersedia di detail web.\n";
+    $text.='Sumber: '.tamasyaTelegramPlainText($g['contact']['bookingSource']??'Direct')."\n";
     $c=$data['lifecycle']['counts'];return $text."\nMasuk: {$c['active']} · Selesai: {$c['completed']} · Reservasi: {$c['reserved']}\nTotal: Rp ".tamasyaTelegramFormatAmount($data['totals']['total']).' · Dibayar: Rp '.tamasyaTelegramFormatAmount($data['totals']['paid']).' · Sisa: Rp '.tamasyaTelegramFormatAmount($data['totals']['balance']);
 }
 

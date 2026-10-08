@@ -27,12 +27,27 @@ function tamasyaMultiRoomTelegramPicker(array $ctx,int $page=1): array {
     foreach(array_slice($rows,($page-1)*12,12) as $r){$selected=isset($ctx['selected'][$r['number']]);$buttons[]=[['text'=>($selected?'✅ ':'▫️ ').'Kamar '.$r['number'].' · '.$r['type'],'callback_data'=>'mr_select:'.$r['number'].':'.$ctx['nonce']]];}
     $nav=[];if($page>1)$nav[]=['text'=>'←','callback_data'=>'mr_page:'.($page-1).':'.$ctx['nonce']];if($page*12<count($rows))$nav[]=['text'=>'→','callback_data'=>'mr_page:'.($page+1).':'.$ctx['nonce']];if($nav)$buttons[]=$nav;
     $buttons[]=[['text'=>'Lanjut · '.count($ctx['selected']).' kamar','callback_data'=>'mr_next:'.$ctx['nonce']]];$buttons[]=[['text'=>'Batalkan','callback_data'=>'main_menu']];
-    return ['text'=>"🏨 *PILIH BEBERAPA KAMAR*\n\n".tamasyaTelegramPlainText($ctx['guestName'])."\n".$ctx['checkIn'].' → '.$ctx['checkOut']."\n\nTekan kamar untuk memilih/melepasnya. Ketersediaan diperiksa kembali saat simpan.\nDipilih: ".implode(', ',array_keys($ctx['selected'])),'markup'=>['inline_keyboard'=>$buttons]];
+    return ['text'=>"🏨 *PILIH BEBERAPA KAMAR*\n\n".tamasyaTelegramPlainText($ctx['guestName'])."\n".$ctx['checkIn'].' → '.$ctx['checkOut']."\n\nTekan kamar untuk memilih/melepasnya. Pilihan mengikuti tanggal di atas, bukan status terisi saat ini. Ketersediaan diperiksa kembali saat simpan.\nDipilih: ".implode(', ',array_keys($ctx['selected'])),'markup'=>['inline_keyboard'=>$buttons]];
+}
+function tamasyaMultiRoomTelegramSourcePicker(array $ctx): array {
+    $buttons=[];$row=[];
+    foreach(array_slice($ctx['bookingSources'],0,20) as $index=>$source){
+        $row[]=['text'=>$source==='Direct'?'Direct · pesan langsung':$source,'callback_data'=>'mr_source:'.$index.':'.$ctx['nonce']];
+        if(count($row)===2){$buttons[]=$row;$row=[];}
+    }
+    if($row)$buttons[]=$row;
+    $buttons[]=[['text'=>'Sumber lain · ketik nama','callback_data'=>'mr_source:custom:'.$ctx['nonce']]];
+    $buttons[]=[['text'=>'Batalkan','callback_data'=>'main_menu']];
+    return ['text'=>'Pilih sumber booking: Direct untuk pesanan langsung, atau nama OTA/agen. Ini berbeda dari Tunai/Transfer/QRIS yang dipilih saat menerima pembayaran. Anda juga boleh mengetik nama sumber.','markup'=>['inline_keyboard'=>$buttons]];
+}
+function tamasyaMultiRoomTelegramDatesPrompt(): string {
+    return "Ketik tanggal check-in dan check-out, contoh:\n`".date('Y-m-d').' '.date('Y-m-d',strtotime('+1 day'))."`\nBisa juga DD/MM/YYYY DD/MM/YYYY. Kamar terisi sekarang bisa dipesan untuk tanggal setelah jadwal tamu sebelumnya berakhir. Check-in langsung wajib hari ini.";
 }
 function tamasyaMultiRoomTelegramConfirm(PDO $pdo,array $actor,array $ctx): array {
     tamasyaMultiRoomTelegramState($pdo,$actor,'waiting_mr_confirm',$ctx);$total=array_sum(array_column($ctx['selected'],'totalAmount'));
     $text="🏨 *KONFIRMASI RESERVASI GRUP*\n\n".tamasyaTelegramPlainText($ctx['guestName'])."\n".$ctx['checkIn'].' → '.$ctx['checkOut']."\n";
     foreach($ctx['selected'] as $r)$text.='• '.$r['roomNumber'].' · '.tamasyaTelegramPlainText($r['guestName']?:$ctx['guestName']).' · Rp '.tamasyaTelegramFormatAmount($r['totalAmount'])."\n";
+    $text.='Sumber: '.tamasyaTelegramPlainText($ctx['bookingSource'])."\n";
     $text.="\nTagihan: ".$ctx['billingMode'].($ctx['billingMode']==='split'?' · master '.$ctx['routedPercent'].'%':'')."\nTotal termasuk PBJT: Rp ".tamasyaTelegramFormatAmount($total)."\nPembayaran: BELUM BAYAR. DP/pelunasan diterima lewat tombol Pembayaran grup setelah tersimpan.\n".($ctx['lifecycleIntent']==='check_in_now'?'Kamar akan langsung check-in.':'Kamar masih reservasi; belum dianggap menginap.');
     return ['text'=>$text,'markup'=>['inline_keyboard'=>[[['text'=>$ctx['lifecycleIntent']==='check_in_now'?'✅ Check-in semua':'✅ Simpan reservasi','callback_data'=>'mr_confirm:'.$ctx['nonce']]],[['text'=>'Batalkan','callback_data'=>'main_menu']]]]];
 }
@@ -51,6 +66,14 @@ function tamasyaMultiRoomTelegramCallback(PDO $pdo,array $actor,string $callback
     if($command==='mr_pay'){$d=tamasyaMultiRoomDetail($pdo,$parts[1]??'');$ctx=['flow'=>'multi-room','nonce'=>bin2hex(random_bytes(8)),'expiresAt'=>time()+900,'groupId'=>$d['group']['id'],'date'=>date('Y-m-d')];tamasyaMultiRoomTelegramState($pdo,$actor,'waiting_mr_payment_amount',$ctx);return ['text'=>'💰 Ketik nominal uang yang benar-benar diterima. Sisa grup: Rp '.tamasyaTelegramFormatAmount($d['totals']['balance']),'markup'=>['inline_keyboard'=>[[['text'=>'Batalkan','callback_data'=>'main_menu']]]]];}
     $nonce=end($parts);$ctx=tamasyaMultiRoomTelegramContext($actor,$nonce);$state=(string)($actor['telegram_state']??'');
     if(in_array($command,['mr_confirm','mr_pay_confirm'],true)&&$state==='mr_done')return tamasyaMultiRoomTelegramDetail($pdo,$actor,$ctx['groupId']);
+    if($command==='mr_source'){
+        if($state!=='waiting_mr_source')throw new RuntimeException('Pemilihan sumber booking sudah selesai.');
+        if(($parts[1]??'')==='custom')return ['text'=>'Ketik nama OTA/agen/sumber booking (maksimal 100 karakter).','markup'=>null];
+        $index=$parts[1]??'';if(!ctype_digit($index)||!isset($ctx['bookingSources'][(int)$index]))throw new InvalidArgumentException('Pilihan sumber booking tidak valid.');
+        $ctx['bookingSource']=tamasyaMultiRoomNormalizeSource($ctx['bookingSources'][(int)$index]);
+        tamasyaMultiRoomTelegramState($pdo,$actor,'waiting_mr_dates',$ctx);
+        return ['text'=>tamasyaMultiRoomTelegramDatesPrompt(),'markup'=>null];
+    }
     if(in_array($command,['mr_select','mr_page','mr_next'],true)){
         if($state!=='waiting_mr_rooms')throw new RuntimeException('Pemilihan kamar sudah selesai. Mulai ulang untuk mengubah kamar.');
         if($command==='mr_select'){$number=$parts[1]??'';$found=null;foreach($ctx['availableRooms'] as $r)if((string)$r['number']===$number)$found=$r;if(!$found)throw new RuntimeException('Kamar tidak ada pada pilihan yang diperiksa.');if(isset($ctx['selected'][$number]))unset($ctx['selected'][$number]);else{if(count($ctx['selected'])>=50)throw new InvalidArgumentException('Maksimal 50 kamar per grup.');$ctx['selected'][$number]=['roomNumber'=>$number,'guestName'=>'','totalAmount'=>$found['totalAmount']];}tamasyaMultiRoomTelegramState($pdo,$actor,$state,$ctx);return tamasyaMultiRoomTelegramPicker($ctx);}
@@ -87,8 +110,8 @@ function tamasyaMultiRoomTelegramPaymentConfirm(PDO $pdo,array $actor,array $ctx
 function tamasyaMultiRoomTelegramMessage(PDO $pdo,array $actor,string $message): array {
     tamasyaMultiRoomRequire($pdo,$actor,true);$ctx=tamasyaMultiRoomTelegramContext($actor);$state=(string)$actor['telegram_state'];$text=trim($message);$markup=null;
     if($state==='waiting_mr_name'){if($text===''||tamasyaStringLength($text)>150)throw new InvalidArgumentException('Nama pemesan tidak valid.');$ctx['guestName']=$text;$state='waiting_mr_phone';$reply='Ketik nomor HP pemesan, atau - untuk melewati.';}
-    elseif($state==='waiting_mr_phone'){$ctx['guestPhone']=$text==='-'?'':$text;$state='waiting_mr_source';$reply='Ketik sumber booking, contoh Direct atau nama OTA yang sesuai aturan pajak hotel.';}
-    elseif($state==='waiting_mr_source'){$ctx['bookingSource']=$text?:'Direct';$state='waiting_mr_dates';$reply="Ketik tanggal check-in dan check-out, contoh:\n`".date('Y-m-d').' '.date('Y-m-d',strtotime('+1 day'))."`\nBisa juga DD/MM/YYYY DD/MM/YYYY. Check-in langsung wajib hari ini.";}
+    elseif($state==='waiting_mr_phone'){$ctx['guestPhone']=$text==='-'?'':$text;$ctx['bookingSources']=tamasyaMultiRoomBookingSources($pdo);tamasyaMultiRoomTelegramState($pdo,$actor,'waiting_mr_source',$ctx);return tamasyaMultiRoomTelegramSourcePicker($ctx);}
+    elseif($state==='waiting_mr_source'){$ctx['bookingSource']=tamasyaMultiRoomNormalizeSource($text);$state='waiting_mr_dates';$reply=tamasyaMultiRoomTelegramDatesPrompt();}
     elseif($state==='waiting_mr_dates'){
         $parts=preg_split('/\s+/',$text);if(count($parts)!==2)throw new InvalidArgumentException('Ketik dua tanggal masuk dan keluar.');
         foreach($parts as &$date)if(preg_match('~^(\d{2})/(\d{2})/(\d{4})$~',$date,$m))$date=$m[3].'-'.$m[2].'-'.$m[1];unset($date);

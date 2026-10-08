@@ -45,3 +45,8 @@ const browserTest=fs.readFileSync(fileURLToPath(new URL('uat_rc1/browser/rc1-ui.
 assert.match(browserTest,/getByRole\('dialog'\)\)\.toHaveCount\(1\)/,'E2E must enforce one accessible dialog');
 assert.match(browserTest,/dialog\.locator\('\.mr-dialog'\)\.boundingBox\(\)/,'E2E must measure real modal panel, not fullscreen overlay');
 console.log('PASS exactly one named accessible multi-room modal with inner-panel containment and strengthened browser assertions.');
+
+assert.match(multiRoomSource,/h\('select',\{[^}]+value:customSource/,'Booking source is a real dropdown with custom entry');
+assert.match(multiRoomSource,/Nama sumber lain/,'Configured and typed sources remain available');
+assert.match(multiRoomSource,/room\.currentStatus==='booked'/,'Future-selectable occupied rooms explain their present status');
+console.log('PASS multi-room explicit source selection and date-based occupied inventory labels.');

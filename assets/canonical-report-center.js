@@ -1,6 +1,6 @@
 (function(){
   'use strict';
-  const BUILD='20261008-r14-dbfix';
+  const BUILD='20261008-r14-mrfix';
   const FALLBACK_TYPES={
     financial_summary:'Laporan Keuangan Lengkap',transaction_register:'Register Transaksi',tax_ledger:'Laporan Pajak / PBJT',journal:'Jurnal Akuntansi',cash_bank:'Kas & Bank / QRIS',booking_register:'Register Reservasi',checkout_register:'Register Check-out',shift:'Laporan Shift & Rekonsiliasi Kas',reconciliation:'Rekonsiliasi Bank/QRIS',backfill:'Backfill & Koreksi Historis',salary:'Laporan Gaji',attendance:'Laporan Absensi',inventory:'Laporan Inventaris',inventory_maintenance:'Pemeliharaan Inventaris',night_audit:'Night Audit',housekeeping:'Housekeeping',audit_log:'Audit Log'
   };

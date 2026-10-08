@@ -21,4 +21,16 @@ mrCheck(!preg_match('/CREATE\s+(TABLE|ALTER)|ALTER\s+TABLE/i',$src.$cli),'No run
 require dirname(__DIR__).'/api/support/017_authorization_policy.php';require dirname(__DIR__).'/api/modules/growth_enterprise_locked/105_growth_suite.php';
 putenv('TAMASYA_GROWTH_SUITE_ENABLED=0');putenv('TAMASYA_GROWTH_GROUP_CORPORATE_ENABLED=1');mrReject(fn()=>tamasyaMultiRoomRequire(new MrNoDb(),['role'=>'admin'],false),'Disabled parent blocks group before schema access');
 putenv('TAMASYA_GROWTH_SUITE_ENABLED=1');putenv('TAMASYA_GROWTH_GROUP_CORPORATE_ENABLED=0');mrReject(fn()=>tamasyaMultiRoomRequire(new MrNoDb(),['role'=>'admin'],false),'Disabled child blocks group before schema access');
+// Source choices and conflict descriptions use real production helpers, no DB startup.
+$opts=tamasyaMultiRoomSourceOptions([['source_pattern'=>'*'],['source_pattern'=>'OTA'],['source_pattern'=>'direct'],['source_pattern'=>'traveloka'],['source_pattern'=>'Agen Lokal'],['source_pattern'=>'Agen Lokal'],['source_pattern'=>"bad\nsource"]]);
+mrCheck($opts===['Direct','Website','Traveloka','Booking.com','Tiket.com','Agoda','Airbnb','Agen Lokal'],'Specific OTA and configured source options are deduplicated; generic tax patterns are not sources');
+mrCheck(tamasyaMultiRoomNormalizeSource(' Traveloka ')==='Traveloka','Source trims whitespace without replacing the OTA identity');
+foreach(['','OTA',str_repeat('a',101),"Bad\nSource"] as $value)mrReject(fn()=>tamasyaMultiRoomNormalizeSource($value),'Invalid or generic source rejected instead of silently saving Direct');
+mrCheck(tamasyaMultiRoomNormalizeSource(str_repeat('é',100))===str_repeat('é',100),'100 Unicode source characters accepted');
+$label=tamasyaMultiRoomConflictLabel(['id'=>'private-id','guestName'=>'Private guest','status'=>'active','_resolvedStartAt'=>'2026-10-08 14:00:00','_resolvedEndAt'=>'2026-10-09 12:00:00']);
+mrCheck(str_contains($label,'2026-10-09 12:00:00')&&str_contains($label,'tamu menginap')&&!str_contains($label,'private-id')&&!str_contains($label,'Private guest'),'Unavailable room explains its actual conflicting window without internal IDs or guest PII');
+mrCheck(str_contains(tamasyaMultiRoomConflictLabel(['status'=>'active','_resolvedStartAt'=>'2026-10-08 14:00:00','_resolvedEndAt'=>'9999-12-31 23:59:59']),'belum ada tanggal checkout'),'Open-ended stay explains why future inventory remains blocked');
+$picker=tamasyaMultiRoomTelegramSourcePicker(['bookingSources'=>$opts,'nonce'=>'bound']);$buttons=array_merge(...$picker['markup']['inline_keyboard']);
+mrCheck(count(array_filter($buttons,static fn($b)=>$b['text']==='Traveloka'&&$b['callback_data']==='mr_source:2:bound'))===1,'Telegram OTA source button keeps its bound state nonce and exact name');
+mrCheck(count(array_filter($buttons,static fn($b)=>$b['callback_data']==='mr_source:custom:bound'))===1,'Telegram retains explicit custom source text entry');
 echo "Multi-room and lossless storage unit assertions: $n passed.\n";

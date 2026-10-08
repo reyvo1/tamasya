@@ -40,6 +40,17 @@ before=counts();call('Second child overlap rolls back whole batch','create',payl
 before=counts();_,duplicate=call('Duplicate room rejected','create',payload([rooms[4],rooms[4]]),expected=(409,422));check('Duplicate-room rejection explains the invalid input','Pilih kamar berbeda' in duplicate.get('error',''));check('Duplicate-room failure creates nothing',counts()==before)
 _,availability=call('Availability uses existing inventory','availability',query={'checkIn':str(future),'checkOut':str(future+datetime.timedelta(days=1))});check('Booked room excluded and unrelated room available',not next(r for r in availability['data']['rooms'] if r['number']==rooms[0])['available'] and next(r for r in availability['data']['rooms'] if r['number']==rooms[4])['available'])
 _,invalid_period=call('Invalid period rejected','availability',query={'checkIn':str(future),'checkOut':str(future)},expected=(422,));check('Invalid-period rejection preserves date rule','tanggal keluar setelahnya' in invalid_period.get('error',''))
+# The same physical room can be occupied now and reserved for a non-overlapping date.
+occupied_gid,occupied=must_create('Today active inventory fixture',payload([rooms[15]],start=today,lifecycleIntent='check_in_now'))
+_,future_av=call('Future availability includes occupied room','availability',query={'checkIn':str(today+datetime.timedelta(days=1)),'checkOut':str(today+datetime.timedelta(days=2)),'bookingSource':'Traveloka'})
+fr=next(r for r in future_av['data']['rooms'] if r['number']==rooms[15]);check('Occupied room is selectable after checkout with explicit current status',fr['available'] and fr['currentStatus']=='booked',fr)
+check('Availability exposes specific booking source choices','Traveloka' in future_av['data']['bookingSources'] and 'Direct' in future_av['data']['bookingSources'] and 'OTA' not in future_av['data']['bookingSources'])
+future_occupied,future_detail=must_create('Reserve occupied room after checkout',payload([rooms[15]],start=today+datetime.timedelta(days=1),bookingSource='Traveloka'))
+check('Future reservation preserves OTA and does not check guest in',future_detail['bookings'][0]['status']=='reserved' and future_detail['bookings'][0]['bookingSource']=='Traveloka' and db('SELECT status FROM bookings WHERE id=?',[occupied['bookings'][0]['id']])[0]['status']=='active')
+_,today_av=call('Today availability still rejects occupied overlap','availability',query={'checkIn':str(today),'checkOut':str(today+datetime.timedelta(days=1))})
+tr=next(r for r in today_av['data']['rooms'] if r['number']==rooms[15]);check('Actual overlap shows dates instead of opaque booking id',not tr['available'] and str(today) in tr['reason'] and str(today+datetime.timedelta(days=1)) in tr['reason'] and occupied['bookings'][0]['id'] not in tr['reason'],tr)
+# Ambiguous OTA is not allowed to masquerade as a named source.
+before=counts();call('Generic OTA source rejected','create',payload([rooms[14]],bookingSource='OTA'),expected=(409,422));check('Rejected ambiguous source leaves no parent children cash',counts()==before)
 # DP, all channels and exact cents.
 if not db("SELECT id FROM shift_sessions WHERE status='open'"):
  s,b=request('operations-center','POST',{'command':'shift-open','openingCash':100000,'shiftTime':'siang','notes':'Multi-room UAT shift'},run+'_shift');check('Dedicated shift required for cash',s==200 and b.get('success') is True)
@@ -93,7 +104,9 @@ def button(b,prefix,needle=None):
    cmd=token[0]['callback_data'] if token else raw
    if cmd.startswith(prefix) and (needle is None or needle in cmd):return raw
  raise RuntimeError('Expected Telegram button absent '+prefix+' '+str(needle))
-tg('start','mr_start:check_in_now');tg('primary','TG Multi Primary',False);tg('phone','-',False);tg('source','Direct',False);picker=tg('dates',str(today)+' '+str(today+datetime.timedelta(days=1)),False)
+main_menu=tg('discover_main_menu','main_menu');group_entry=button(main_menu,'mr_start:reserve');tg('discover_group_entry',group_entry)
+tg('direct_group_command','/reservasi_grup',False);check('Direct group command starts same canonical wizard',db('SELECT telegram_state FROM staff WHERE id=?',[admin['id']])[0]['telegram_state']=='waiting_mr_name')
+tg('start','mr_start:check_in_now');tg('primary','TG Multi Primary',False);source_menu=tg('phone','-',False);source_button=button(source_menu,'mr_source:2:');tg('source_choice',source_button);check('Telegram specific OTA button persists channel in wizard',json.loads(db('SELECT telegram_context FROM staff WHERE id=?',[admin['id']])[0]['telegram_context'])['bookingSource']=='Traveloka');tg('stale_source_choice',source_button);check('Old source callback cannot change subsequent wizard state',db('SELECT telegram_state FROM staff WHERE id=?',[admin['id']])[0]['telegram_state']=='waiting_mr_dates');picker=tg('dates',str(today)+' '+str(today+datetime.timedelta(days=1)),False)
 for i,n in enumerate(rooms[10:13]):
  for page in range(1,100):
   try:room_button=button(picker,'mr_select:',n);break
@@ -103,6 +116,7 @@ for i,n in enumerate(rooms[10:13]):
 tg('next',button(picker,'mr_next:'));billing=tg('occupants',rooms[11]+'=TG Second',False);confirm=tg('individual',button(billing,'mr_bill:individual:'));confirm_button=button(confirm,'mr_confirm:');done=tg('confirm',confirm_button)
 ctx=json.loads(db('SELECT telegram_context FROM staff WHERE id=?',[admin['id']])[0]['telegram_context']);tggid=ctx['groupId'];_,td=call('Read Telegram created group','detail',query={'id':tggid});td=td['data']
 check('Telegram direct group creates three active canonical children',len(td['bookings'])==3 and td['lifecycle']['status']=='checked_in' and td['bookings'][1]['guestName']=='TG Second',td['lifecycle'])
+check('Telegram source survives every child and confirmation','Sumber: Traveloka' in confirm.get('message',{}).get('text','') and all(b['bookingSource']=='Traveloka' for b in td['bookings']))
 before=counts();tg('replay_confirm',confirm_button);check('Telegram replay cannot duplicate group children/cash',counts()==before)
 check('Telegram confirm displays one group summary',td['group']['group_code'] in done.get('message',{}).get('text','') and all(n in done.get('message',{}).get('text','') for n in rooms[10:13]))
 # Telegram group payment requires explicit method/account and replays exactly once.
