@@ -522,8 +522,10 @@ switch ($action) {
                 $totalPages=max(1,(int)ceil($count/$pageSize));$page=min(max(1,$page),$totalPages);$offset=($page-1)*$pageSize;
                 $rows=array_slice($all,$offset,$pageSize);
                 $buttons=[];$row=[];
+                $roomListTaxRate=resolveConfiguredTaxRate($pdo,'Direct','room',0,date('Y-m-d'));
                 foreach($rows as $room){
-                    $label='🚪 '.(string)$room['number'].' · Rp '.number_format(((float)($room['price']??0))/1000,0).'k';
+                    $quoted=tamasyaPublishedRoomGrossTotal((float)($room['price']??0),1,(float)$roomListTaxRate);
+                    $label='🚪 '.(string)$room['number'].' · Rp '.number_format($quoted/1000,0).'k';
                     if(function_exists('mb_substr'))$label=mb_substr($label,0,42);else$label=substr($label,0,42);
                     $row[]=['text'=>$label,'callback_data'=>$itemCallbackPrefix.(string)$room['number']];
                     if(count($row)>=2){$buttons[]=$row;$row=[];}
@@ -1339,9 +1341,8 @@ Tidak ada kamar yang benar-benar tersedia secara operasional untuk dijual saat i
                                 ]
                             ];
                         } else {
-                            $p1 = (int)$room['price'];
-                            $p2 = $p1 * 2;
-                            $p3 = $p1 * 3;
+                            $publishedRate=resolveConfiguredTaxRate($pdo,'Direct','room',0,date('Y-m-d'));
+                            $p1=tamasyaPublishedRoomGrossTotal((float)$room['price'],1,(float)$publishedRate);
                             
                             $replyText = "🛒 *PILIH PAKET PENJUALAN - KAMAR {$roomNumber}*\n" .
                                          "Tipe: *{$room['type']}* | Lantai: *{$room['floor']}*\n" .
@@ -1759,10 +1760,11 @@ Tidak ada kamar yang benar-benar tersedia secara operasional untuk dijual saat i
                                         try {
                                             $checkIn = date("Y-m-d");
                                             $checkOut = date("Y-m-d", strtotime("+$nights day"));
-                                            $baseAmount = (float)($room['price'] * $nights);
                                             $vatRate = resolveConfiguredTaxRate($pdo, 'Direct', 'room', 0, $checkIn);
-                                            $vatAmount = round($baseAmount * ($vatRate / 100), 2);
-                                            $totalAmount = $baseAmount + $vatAmount;
+                                            $totalAmount = tamasyaPublishedRoomGrossTotal((float)$room['price'], (int)$nights, (float)$vatRate);
+                                            $inclusive = calculateInclusiveTaxBreakdown($totalAmount, $vatRate);
+                                            $baseAmount = $inclusive['baseAmount'];
+                                            $vatAmount = $inclusive['taxAmount'];
                                             $bookingSource = 'Direct';
                                             $bookingResult = createCanonicalBookingWorkflow($pdo, $loggedInStaff, [
                                                 'guestName' => str_replace('__COLON__', ':', $guestName),
@@ -2027,9 +2029,10 @@ Tidak ada kamar yang benar-benar tersedia secara operasional untuk dijual saat i
                                             $baseAmount = (float)$taxBreakdown['baseAmount'];
                                             $vatAmount = (float)$taxBreakdown['taxAmount'];
                                         } else {
-                                            $baseAmount = (float)($room['price'] * $nights);
-                                            $vatAmount = $vatRate > 0 ? round($baseAmount * ($vatRate / 100), 2) : 0;
-                                            $totalAmount = $baseAmount + $vatAmount;
+                                            $totalAmount = tamasyaPublishedRoomGrossTotal((float)$room['price'], (int)$nights, (float)$vatRate);
+                                            $inclusive = calculateInclusiveTaxBreakdown($totalAmount, $vatRate);
+                                            $baseAmount = $inclusive['baseAmount'];
+                                            $vatAmount = $inclusive['taxAmount'];
                                         }
                                         $bookingResult = createCanonicalBookingWorkflow($pdo, $loggedInStaff, [
                                             'guestName' => str_replace('__COLON__', ':', $guestName),
@@ -4799,10 +4802,11 @@ Shift ditutup di database server dengan catatan Anda. Selisih: *{$result['varian
                                 try {
                                     $checkIn = date("Y-m-d");
                                     $checkOut = date("Y-m-d", strtotime("+$nights day"));
-                                    $baseAmount = (float)($room['price'] * $nights);
                                     $vatRate = resolveConfiguredTaxRate($pdo, 'Direct', 'room', 0, $checkIn);
-                                    $vatAmount = round($baseAmount * ($vatRate / 100), 2);
-                                    $totalAmount = $baseAmount + $vatAmount;
+                                    $totalAmount = tamasyaPublishedRoomGrossTotal((float)$room['price'], (int)$nights, (float)$vatRate);
+                                    $inclusive = calculateInclusiveTaxBreakdown($totalAmount, $vatRate);
+                                    $baseAmount = $inclusive['baseAmount'];
+                                    $vatAmount = $inclusive['taxAmount'];
                                     $bookingResult = createCanonicalBookingWorkflow($pdo, $loggedInStaff, [
                                         'guestName' => str_replace('__COLON__', ':', $guestName),
                                         'roomNumber' => $roomNumber,
@@ -5105,9 +5109,10 @@ Shift ditutup di database server dengan catatan Anda. Selisih: *{$result['varian
                                         $baseAmount = (float)$taxBreakdown['baseAmount'];
                                         $vatAmount = (float)$taxBreakdown['taxAmount'];
                                     } else {
-                                        $baseAmount = (float)($room['price'] * $nights);
-                                        $vatAmount = $vatRate > 0 ? round($baseAmount * ($vatRate / 100), 2) : 0;
-                                        $totalAmount = $baseAmount + $vatAmount;
+                                        $totalAmount = tamasyaPublishedRoomGrossTotal((float)$room['price'], (int)$nights, (float)$vatRate);
+                                        $inclusive = calculateInclusiveTaxBreakdown($totalAmount, $vatRate);
+                                        $baseAmount = $inclusive['baseAmount'];
+                                        $vatAmount = $inclusive['taxAmount'];
                                     }
                                     $bookingResult = createCanonicalBookingWorkflow($pdo, $loggedInStaff, [
                                         'guestName' => str_replace('__COLON__', ':', $guestName),
@@ -5217,9 +5222,10 @@ Shift ditutup di database server dengan catatan Anda. Selisih: *{$result['varian
                             $baseAmount = (int)round($taxBreakdown['baseAmount']);
                             $vatAmount = (int)round($taxBreakdown['taxAmount']);
                         } else {
-                            $baseAmount = (int)($room['price'] * $nights);
-                            $vatAmount = $vatRate > 0 ? (int)round($baseAmount * ($vatRate / 100)) : 0;
-                            $totalAmount = $baseAmount + $vatAmount;
+                            $totalAmount = tamasyaPublishedRoomGrossTotal((float)$room['price'], (int)$nights, (float)$vatRate);
+                            $inclusive = calculateInclusiveTaxBreakdown($totalAmount, $vatRate);
+                            $baseAmount = $inclusive['baseAmount'];
+                            $vatAmount = $inclusive['taxAmount'];
                         }
                         
                         if ($splitCashAmount <= 0 || $splitCashAmount >= $totalAmount) {
@@ -6245,10 +6251,11 @@ Hubungi petugas hotel untuk informasi nomor kamar yang tersedia.";
                                     try {
                                         $checkIn = date("Y-m-d");
                                         $checkOut = date("Y-m-d", strtotime("+$nights day"));
-                                        $baseAmount = (int)($room['price'] * $nights);
                                         $vatRate = resolveConfiguredTaxRate($pdo, 'Direct', 'room', 0, $checkIn);
-                                        $vatAmount = (int)round($baseAmount * ($vatRate / 100));
-                                        $totalAmount = $baseAmount + $vatAmount;
+                                        $totalAmount = tamasyaPublishedRoomGrossTotal((float)$room['price'], (int)$nights, (float)$vatRate);
+                                        $inclusive = calculateInclusiveTaxBreakdown($totalAmount, $vatRate);
+                                        $baseAmount = $inclusive['baseAmount'];
+                                        $vatAmount = $inclusive['taxAmount'];
                                         $bookingResult = createCanonicalBookingWorkflow($pdo, $loggedInStaff, [
                                             'guestName' => $guestName,
                                             'roomNumber' => $roomNum,

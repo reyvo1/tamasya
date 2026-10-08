@@ -112,7 +112,7 @@ python3 - "$PING_BODY" <<'PY'
 import json,sys
 x=json.load(open(sys.argv[1],encoding='utf-8'))
 assert x.get('success') is True and x.get('liveness') is True and x.get('ready') is True, x
-assert x.get('buildId')=='20261007-growth-kpi-r13', x
+assert x.get('buildId')=='20261008-r14-dbfix', x
 print('PASS SaaS routed API+MySQL ping',x.get('requestId'),x.get('serverRevision'))
 PY
 

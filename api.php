@@ -1624,7 +1624,7 @@ if ($isMutatingRequest && !tamasyaNodeReplayActive()) {
             if ($storedStatus <= 0) $storedStatus = 200;
             http_response_code($storedStatus);
             header('X-Tamasya-Idempotent-Replay: 1');
-            $storedBody = tamasyaDecodeReceiptResponseBody((string)($row['response_body'] ?? ''));
+            $storedBody = tamasyaReplayDurableReceiptBody((string)($row['response_body'] ?? ''),static fn()=>getRoleScopedHotelData($pdo,$loggedInStaff));
             echo $storedBody !== '' ? $storedBody : json_encode(['success'=>(string)($row['status']??'')==='completed','duplicate'=>true,'operationId'=>$requestOperationClaim['operationId']??null],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
             exit;
         }
@@ -1716,7 +1716,7 @@ if ($isMutatingRequest) {
             if ($requestOperationIdSnapshot !== '' && $requestOperationPayloadHashSnapshot !== '') {
                 try {
                     tamasyaRuntimeSetStage('mutation:receipt');
-                    tamasyaCompleteRequestOperation($pdo,$requestOperationIdSnapshot,$requestOperationPayloadHashSnapshot,(int)$status,$responseBody,$classification,$fatalError);
+                    tamasyaCompleteRequestOperation($pdo,$requestOperationIdSnapshot,$requestOperationPayloadHashSnapshot,(int)$status,$responseBody,$classification,$fatalError,(string)$auditActionSnapshot);
                 } catch (Throwable $receiptError) {
                     $receiptMessage = clientExceptionMessage('Penyelesaian receipt operation_id gagal', $receiptError);
                     tamasyaMarkRequestOperationUncertain($pdo,$requestOperationIdSnapshot,$receiptMessage);

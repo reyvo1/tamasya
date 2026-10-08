@@ -1,5 +1,5 @@
 // Keep full-screen dialogs outside page animation and sticky-navigation stacking contexts.
-import {f,t,F_} from "./vendor-react.js?v=20261008-multiroom-r14";
+import {f,t,F_} from "./vendor-react.js?v=20261008-r14-dbfix";
 export function TamasyaFloatingLayer({children}) {
   return F_().createPortal(children,document.body);
 }

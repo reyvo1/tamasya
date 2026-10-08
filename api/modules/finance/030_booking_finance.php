@@ -762,6 +762,21 @@ function inferBookingChargeAction($tx) {
     return tamasyaInferBookingChargeAction((array)$tx);
 }
 
+/** Published room tariffs use whole-rupiah nightly gross quotes.  This fixes
+ * the Rp227273 + 10% = Rp250000.30 drift without rounding negotiated gross,
+ * arbitrary transaction amounts, split allocations, or already posted history.
+ * Round each night before multiplying nights, otherwise a two-night stay would
+ * become Rp500001 instead of the published Rp500000.
+ * rooms.price remains the pre-tax master tariff for compatibility.
+ */
+function tamasyaPublishedRoomGrossTotal(float $nightlyBase,int $nights,float $taxRate): float {
+    if(!is_finite($nightlyBase)||$nightlyBase<0||$nightlyBase>1000000000000||$nights<1||$nights>3650||!is_finite($taxRate)||$taxRate<0||$taxRate>100)throw new InvalidArgumentException('Tarif master kamar atau PBJT tidak valid.');
+    $nightlyGross=round($nightlyBase*(1+$taxRate/100),0,PHP_ROUND_HALF_UP);
+    $total=$nightlyGross*$nights;
+    if(!is_finite($total)||$total>1000000000000)throw new InvalidArgumentException('Total tarif master kamar melebihi batas aman.');
+    return round($total,2);
+}
+
 /** Source line 2805: calculateInclusiveTaxBreakdown */
 function calculateInclusiveTaxBreakdown($amount, $rate) {
     $amount = max(0, (float)$amount);
@@ -2070,7 +2085,14 @@ function applyCanonicalTelegramBookingChargeWorkflow($pdo,$actor,array $payload,
                     $base=round((float)$payload['quotedBaseAmount'],2);
                 }
             }
-            $quotedGross=round($base+round($base*$quoteRate/100,2),2);
+            // Extension master quote must use the same per-night rupiah pricing
+            // rule as the Telegram preview; negotiated gross remains exact cents.
+            $quotedGross=$action==='extension'&&($payload['priceMode']??'master')==='master'
+                ?tamasyaPublishedRoomGrossTotal((float)$chargeRoom['price'],(int)$payload['nights'],(float)$quoteRate)
+                :round($base+round($base*$quoteRate/100,2),2);
+            if($action==='extension'&&($payload['priceMode']??'master')==='master'){
+                $base=calculateInclusiveTaxBreakdown($quotedGross,$quoteRate)['baseAmount'];
+            }
             if(($payload['priceMode']??'master')==='negotiated'){
                 $inclusive=calculateInclusiveTaxBreakdown($amount,$quoteRate);
                 if(abs($inclusive['baseAmount']-$base)>0.01)throw new RuntimeException('Harga nego dan PBJT tidak sesuai quote.');

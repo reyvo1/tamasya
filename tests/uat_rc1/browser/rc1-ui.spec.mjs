@@ -490,7 +490,7 @@ test('Fresh service worker precaches the exact React module for offline import',
     // Memo does not import the PMS React bundle, so the vendor cannot be warmed
     // accidentally before this check of the newly installed precache.
     await page.goto(BASE+'/internal-memo.html');
-    const vendor='assets/chunks/vendor-react.js?v=20261008-multiroom-r14';
+    const vendor='assets/chunks/vendor-react.js?v=20261008-r14-dbfix';
     const cached=await page.evaluate(async vendor=>{
       await navigator.serviceWorker.register('./sw.js');await navigator.serviceWorker.ready;
       const cacheKeys=await caches.keys();
@@ -704,17 +704,17 @@ test('Multi-room main UI creates independent bookings and remains contained on d
  const salt=Date.now().toString(36).slice(-5),numbers=[0,1,2].map(i=>'BU'+salt+i);
  for(const number of numbers){const r=await request.post(`${BASE}/api.php?action=rooms`,{headers:{...headers,'X-Tamasya-Operation-ID':'mr_ui_room_'+number},data:{number,type:'SIM Deluxe',price:200000,floor:3}});expect(r.status()).toBe(200);expect((await r.json()).success).toBe(true);}
  await page.goto('/index.html');await waitLoaded(page);await page.locator('#domain-frontoffice').click();await page.locator('[role="menu"] [data-route="rooms"]').click();
- await page.getByRole('button',{name:'Reservasi Beberapa Kamar',exact:true}).click();const dialog=page.getByRole('dialog',{name:'Reservasi grup',exact:true});await expect(dialog).toBeVisible();
+ await page.getByRole('button',{name:'Reservasi Beberapa Kamar',exact:true}).click();const dialog=page.getByRole('dialog',{name:'Reservasi grup',exact:true});await expect(dialog).toBeVisible();await expect(page.getByRole('dialog')).toHaveCount(1);await expect(dialog).toHaveAttribute('aria-modal','true');await expect(dialog.locator('.mr-dialog')).not.toHaveAttribute('role','dialog');
  await dialog.getByLabel('Nama pemesan',{exact:true}).fill('UAT Browser Primary');await dialog.getByLabel('Nomor HP',{exact:true}).fill('08000000042');
  const date=await page.evaluate(()=>window.TamasyaPosBusinessDatePolicy.dateAt(new Date(),window.TAMASYA_RUNTIME_CONFIG.propertyTimezone));const from=new Date(date+'T12:00:00Z');from.setUTCDate(from.getUTCDate()+75);const to=new Date(from);to.setUTCDate(to.getUTCDate()+1);
  await dialog.getByLabel('Check-in',{exact:true}).fill(from.toISOString().slice(0,10));await dialog.getByLabel('Check-out',{exact:true}).fill(to.toISOString().slice(0,10));
  for(const n of numbers){const choice=dialog.locator('.mr-choice').filter({hasText:'Kamar '+n});await expect(choice.locator('input')).toBeEnabled();await choice.locator('input').check();}
  await expect(dialog.locator('fieldset')).toHaveCount(3);await dialog.locator('fieldset').nth(1).getByLabel('Penghuni (boleh kosong)',{exact:true}).fill('Second Occupant');
- const bounds=async()=>{const box=await dialog.boundingBox();const viewport=page.viewportSize();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.y).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(viewport.width+1);expect(box.y+box.height).toBeLessThanOrEqual(viewport.height+1);await expectNoPageHorizontalOverflow(page);};await bounds();
+ const bounds=async()=>{const box=await dialog.locator('.mr-dialog').boundingBox();expect(box).not.toBeNull();const viewport=page.viewportSize();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.y).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(viewport.width+1);expect(box.y+box.height).toBeLessThanOrEqual(viewport.height+1);await expectNoPageHorizontalOverflow(page);};await bounds();
  if(info.project.name==='desktop'){await page.setViewportSize({width:768,height:1024});await bounds();await page.screenshot({path:path.join(LOGDIR,'multi-room-tablet.png')});await page.setViewportSize({width:1440,height:1000});}
  await page.screenshot({path:path.join(LOGDIR,`multi-room-form-${info.project.name}.png`)});
  const created=page.waitForResponse(r=>r.url().includes('action=multi-room-bookings')&&r.request().method()==='POST'&&r.request().postDataJSON()?.command==='create');await dialog.getByRole('button',{name:'Simpan reservasi',exact:true}).click();const response=await created;expect(response.status()).toBe(200);const data=await response.json();expect(data.success).toBe(true);expect(data.data.bookings).toHaveLength(3);expect(data.data.group.name).toBe('UAT Browser Primary');expect(data.data.bookings.map(b=>b.roomNumber).sort()).toEqual([...numbers].sort());expect(data.data.bookings.every(b=>b.status==='reserved')).toBe(true);expect(data.data.bookings.some(b=>b.guestName==='Second Occupant')).toBe(true);
- await expect(dialog).toContainText(data.data.group.group_code);await expect(dialog.locator('tbody tr')).toHaveCount(3);await bounds();await page.screenshot({path:path.join(LOGDIR,`multi-room-detail-${info.project.name}.png`)});
- await dialog.getByRole('button',{name:'Tutup reservasi grup',exact:true}).click();await expect(dialog).toHaveCount(0);await page.getByRole('button',{name:'Daftar Grup',exact:true}).click();await expect(page.getByRole('dialog')).toContainText(data.data.group.group_code);await page.getByRole('dialog').getByRole('button',{name:'Tutup reservasi grup',exact:true}).click();
+ await expect(dialog).toContainText(data.data.group.group_code);await expect(dialog.locator('tbody tr')).toHaveCount(3);await expect(page.getByRole('dialog')).toHaveCount(1);await bounds();await page.screenshot({path:path.join(LOGDIR,`multi-room-detail-${info.project.name}.png`)});
+ await dialog.getByRole('button',{name:'Tutup reservasi grup',exact:true}).click();await expect(dialog).toHaveCount(0);await page.getByRole('button',{name:'Daftar Grup',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(1);await expect(page.getByRole('dialog')).toContainText(data.data.group.group_code);await page.getByRole('dialog').getByRole('button',{name:'Tutup reservasi grup',exact:true}).click();
  expect(errors).toEqual([]);writeEvidence('multi-room-main-flow',info,{pass:true,groupId:data.groupId,rooms:numbers,bookings:data.data.bookings.map(b=>b.id),totals:data.data.totals,contained:true});
 });

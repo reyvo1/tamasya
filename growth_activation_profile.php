@@ -29,7 +29,7 @@ function tamasyaGrowthProfileEnvironment(string $original): string {
         if(preg_match('/^\s*(?:export\s+)?([A-Z_][A-Z0-9_]*)\s*=/',$line,$m)&&array_key_exists($m[1],$profile))continue;
         $out[]=$line;
     }
-    $text=rtrim(implode("\n",$out))."\n\n# Growth/Enterprise activation 20261008-multiroom-r14\n";
+    $text=rtrim(implode("\n",$out))."\n\n# Growth/Enterprise activation 20261008-r14-dbfix\n";
     foreach($profile as $key=>$value)$text.=$key.'='.$value."\n";
     return $text;
 }

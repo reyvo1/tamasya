@@ -25,10 +25,13 @@ node tests/owner-readonly-regression.mjs
 node tests/ui-financial-logic-regression.mjs
 node tests/growth-ui-currency-regression.mjs
 php tests/finance-cash-tax-regression.php
+php tests/room-inclusive-pricing-regression.php
+node tests/room-inclusive-pricing-regression.mjs
 node tests/finance-cash-tax-regression.mjs
 php tests/booking-negotiation-regression.php
 php tests/growth-kpi-regression.php
 php tests/multi-room-regression.php
+php tests/receipt-projection-regression.php
 node --experimental-vm-modules tests/multi-room-ui-regression.mjs
 php tests/telegram-charge-payment-regression.php
 php tests/telegram-shift-regression.php
@@ -53,4 +56,4 @@ python3 tests/prd-schema-authority-regression.py
 node tests/prd-pos-business-date-regression.mjs
 php tests/device-contract-regression.php
 php tests/database-tls-regression.php
-printf "All source checks and 38 regression suites passed.\n"
+printf "All source checks and 41 regression suites passed.\n"

@@ -65,10 +65,13 @@ jobs:
           node tests/ui-financial-logic-regression.mjs
           node tests/growth-ui-currency-regression.mjs
           php tests/finance-cash-tax-regression.php
+          php tests/room-inclusive-pricing-regression.php
+          node tests/room-inclusive-pricing-regression.mjs
           node tests/finance-cash-tax-regression.mjs
           php tests/booking-negotiation-regression.php
           php tests/growth-kpi-regression.php
           php tests/multi-room-regression.php
+          php tests/receipt-projection-regression.php
           node --experimental-vm-modules tests/multi-room-ui-regression.mjs
           php tests/telegram-charge-payment-regression.php
           php tests/telegram-shift-regression.php
@@ -583,6 +586,25 @@ jobs:
       - name: Start RC1 application server
         run: |
           set -euo pipefail
+          # Outbound Telegram is routed exclusively to a loopback fake API during
+          # UAT. This makes recipient/outbox verification real without internet
+          # delivery or ever using a real Telegram credential.
+          TG_READY=/tmp/tamasya-rc1-telegram-sink.ready
+          rm -f "$TG_READY"
+          python3 tests/uat_rc1/telegram_api_sink.py --port 0 --ready-file "$TG_READY" --output tests/uat_rc1/logs/telegram-api-calls.jsonl >tests/uat_rc1/logs/telegram-api-sink.log 2>&1 &
+          TG_PID=$!
+          echo "$TG_PID" >/tmp/tamasya-rc1-telegram-sink.pid
+          for i in {1..45}; do
+            kill -0 "$TG_PID" 2>/dev/null || { cat tests/uat_rc1/logs/telegram-api-sink.log >&2; exit 1; }
+            test -s "$TG_READY" && break
+            sleep 1
+          done
+          test -s "$TG_READY"
+          TG_PORT="$(cat "$TG_READY")"
+          case "$TG_PORT" in ''|*[!0-9]*) echo 'Invalid Telegram sink port' >&2; exit 1 ;; esac
+          test "$TG_PORT" -ge 1 -a "$TG_PORT" -le 65535
+          export TELEGRAM_API_BASE_URL="http://127.0.0.1:${TG_PORT}"
+          echo "TELEGRAM_API_BASE_URL=$TELEGRAM_API_BASE_URL" >> "$GITHUB_ENV"
           php -S 127.0.0.1:38184 -t . >tests/uat_rc1/logs/php-server.log 2>&1 &
           echo $! > /tmp/tamasya-php.pid
           for i in {1..45}; do

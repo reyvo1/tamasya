@@ -967,10 +967,12 @@ function tamasyaTelegramExtensionQuote(PDO $pdo,array $actor,array $booking,arra
     if($nights<1||$nights>3650)throw new InvalidArgumentException('Jumlah malam perpanjangan harus 1 sampai 3650.');
     $rate=resolveConfiguredTaxRate($pdo,(string)($booking['bookingSource']??'Direct'),'extension',null,date('Y-m-d'));
     $base=round((float)$room['price']*$nights,2);
+    $gross=tamasyaPublishedRoomGrossTotal((float)$room['price'],$nights,(float)$rate);
+    $inclusive=calculateInclusiveTaxBreakdown($gross,$rate);
     $ctx=['flow'=>'extension_quote','nonce'=>substr(hash('sha256',$actor['id'].'|'.$operationId),0,24),'expiresAt'=>time()+900,
         'bookingId'=>(string)$booking['id'],'roomNumber'=>(string)$booking['roomNumber'],'nights'=>$nights,
         'expectedCheckOut'=>(string)$booking['checkOut'],'expectedTotalAmount'=>round((float)$booking['totalAmount'],2),'expectedBookingVersion'=>(int)($booking['version']??0),
-        'quotedMasterBase'=>$base,'quotedBaseAmount'=>$base,'quotedTaxRate'=>$rate,'amount'=>round($base+round($base*$rate/100,2),2),'priceMode'=>'master'];
+        'quotedMasterBase'=>$base,'quotedBaseAmount'=>$inclusive['baseAmount'],'quotedTaxRate'=>$rate,'amount'=>$gross,'priceMode'=>'master'];
     return tamasyaTelegramExtensionRender($pdo,$actor,$ctx);
 }
 function tamasyaTelegramExtensionRender(PDO $pdo,array $actor,array $ctx): array {

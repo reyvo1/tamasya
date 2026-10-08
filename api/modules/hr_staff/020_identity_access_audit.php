@@ -159,8 +159,39 @@ function tamasyaDecodeReceiptResponseBody(?string $storedBody): string {
     return $decoded === false ? '' : $decoded;
 }
 
+/** Only the transient PMS-wide UI projection is omitted from durable receipts.
+ * The mutation result (IDs, amounts, warnings/errors) remains authoritative.
+ * Existing raw/gzip receipts keep their byte-exact replay behavior.
+ */
+function tamasyaPrepareDurableReceiptBody(string $responseBody,string $action): string {
+    if(!in_array($action,['transactions','notifications-read'],true))return $responseBody;
+    try{$response=json_decode($responseBody,false,512,JSON_THROW_ON_ERROR);}
+    catch(JsonException $e){return $responseBody;}
+    if(!is_object($response)||($response->success??null)!==true||!isset($response->db)||!is_object($response->db))return $responseBody;
+    $projection=$response->db;
+    // Recognize the actual role-scoped hotel projection, not an arbitrary db field.
+    foreach(['rooms','bookings','transactions'] as $field)if(!property_exists($projection,$field)||!is_array($projection->$field))return $responseBody;
+    unset($response->db);
+    $envelope=json_encode(['format'=>'tamasya-receipt-projection-v1','response'=>$response,'projection'=>'role-scoped-hotel-data'],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_PRESERVE_ZERO_FRACTION|JSON_THROW_ON_ERROR);
+    return '@tamasya:projection-v1:'.$envelope;
+}
+
+/** Rehydrate a UI projection only after actor/device/session/payload checks.
+ * A projection read failure must never rerun or reinterpret a committed mutation.
+ */
+function tamasyaReplayDurableReceiptBody(?string $storedBody,callable $projectHotelData): string {
+    $body=tamasyaDecodeReceiptResponseBody($storedBody);$prefix='@tamasya:projection-v1:';
+    if(!str_starts_with($body,$prefix))return $body;
+    $envelope=json_decode(substr($body,strlen($prefix)),false,512,JSON_THROW_ON_ERROR);
+    if(!is_object($envelope)||($envelope->format??'')!=='tamasya-receipt-projection-v1'||($envelope->projection??'')!=='role-scoped-hotel-data'||!isset($envelope->response)||!is_object($envelope->response)||($envelope->response->success??null)!==true||property_exists($envelope->response,'db'))throw new RuntimeException('Receipt operasi tidak dapat diverifikasi; transaksi tidak diulang.');
+    $response=$envelope->response;
+    try{$response->db=$projectHotelData();$response->receiptProjection='current-role-scoped';}
+    catch(Throwable $e){$response->refreshRequired=true;$response->receiptProjection='refresh-required';}
+    return json_encode($response,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_PRESERVE_ZERO_FRACTION|JSON_THROW_ON_ERROR);
+}
+
 /** Source line 1441: tamasyaCompleteRequestOperation */
-function tamasyaCompleteRequestOperation(PDO $pdo, string $operationId, string $payloadHash, int $httpStatus, string $responseBody, ?array $classification = null, ?array $fatalError = null): void {
+function tamasyaCompleteRequestOperation(PDO $pdo, string $operationId, string $payloadHash, int $httpStatus, string $responseBody, ?array $classification = null, ?array $fatalError = null, string $receiptAction = ''): void {
     if ($operationId === '' || $payloadHash === '') return;
     $classification = $classification ?? tamasyaNodeClassifyResponse($httpStatus, $responseBody);
     $fatalTypes = [E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR,E_USER_ERROR,E_RECOVERABLE_ERROR];
@@ -182,7 +213,8 @@ function tamasyaCompleteRequestOperation(PDO $pdo, string $operationId, string $
     $stmt = $pdo->prepare("UPDATE request_operation_receipts
         SET status=?,http_status=?,response_body=?,error_message=?,completed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP
         WHERE operation_id=? AND payload_hash=? AND status='processing'");
-    $storedResponseBody = tamasyaEncodeReceiptResponseBody($responseBody);
+    $durableBody = $completed ? tamasyaPrepareDurableReceiptBody($responseBody,$receiptAction) : $responseBody;
+    $storedResponseBody = tamasyaEncodeReceiptResponseBody($durableBody);
     $stmt->execute([$storedStatus,$storedHttpStatus,$storedResponseBody,$storedError,$operationId,$payloadHash]);
 }
 
@@ -1355,7 +1387,7 @@ function requireAuth($pdo) {
                     $row = $requestOperationClaim['row'] ?? [];
                     $storedStatus = (int)($row['http_status'] ?? 200);
                     if ($storedStatus <= 0) $storedStatus = 200;
-                    $storedBody = tamasyaDecodeReceiptResponseBody((string)($row['response_body'] ?? ''));
+                    $storedBody = tamasyaReplayDurableReceiptBody((string)($row['response_body'] ?? ''),static fn()=>getRoleScopedHotelData($pdo,$user));
                     $storedBody = $storedBody !== '' ? $storedBody : (json_encode(['success'=>(string)($row['status']??'')==='completed','duplicate'=>true,'operationId'=>$operationId],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) ?: '{}');
                     $nodeStatus = (string)($row['status'] ?? '') === 'completed' ? 'completed' : 'failed';
                     $pdo->prepare("UPDATE node_sync_receipts SET status=?,http_status=?,response_json=?,last_error=?,completed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE event_id=?")
@@ -1385,7 +1417,7 @@ function requireAuth($pdo) {
             $requestOperationId = (string)($requestOperationClaim['operationId'] ?? '');
             $requestOperationPayloadHash = (string)($requestOperationClaim['payloadHash'] ?? '');
             ob_start();
-            register_shutdown_function(static function() use ($pdo, $eventId, $requestOperationId, $requestOperationPayloadHash): void {
+            register_shutdown_function(static function() use ($pdo, $eventId, $requestOperationId, $requestOperationPayloadHash, $action): void {
                 $status = http_response_code();
                 if ($status === false || $status === 0) $status = 200;
                 $responseBody = (string)(ob_get_contents() ?: '');
@@ -1410,7 +1442,7 @@ function requireAuth($pdo) {
                 } catch (Throwable $ignored) {}
                 if ($requestOperationId !== '' && $requestOperationPayloadHash !== '') {
                     try {
-                        tamasyaCompleteRequestOperation($pdo,$requestOperationId,$requestOperationPayloadHash,(int)$status,$responseBody,$classification,$hasFatal ? $fatalError : null);
+                        tamasyaCompleteRequestOperation($pdo,$requestOperationId,$requestOperationPayloadHash,(int)$status,$responseBody,$classification,$hasFatal ? $fatalError : null,(string)$action);
                     } catch (Throwable $ignored) {}
                 }
             });

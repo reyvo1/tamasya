@@ -37,7 +37,7 @@ switch ($action) {
                 elseif($command==='edit')echo tamasyaJsonEncode(['success'=>true,'data'=>tamasyaMultiRoomEdit($pdo,$loggedInStaff,$input,'web',$op)]);
                 else throw new InvalidArgumentException('Pilihan reservasi grup tidak dikenal.');
             }else{http_response_code(405);echo tamasyaJsonEncode(['success'=>false,'error'=>'Method Not Allowed']);}
-        }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();tamasyaApplyExceptionHttpStatus($e,422);echo tamasyaJsonEncode(['success'=>false,'error'=>clientExceptionMessage('Reservasi grup gagal',$e)]);}
+        }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();if($e instanceof InvalidArgumentException){http_response_code(422);}else{tamasyaApplyExceptionHttpStatus($e,422);}echo tamasyaJsonEncode(['success'=>false,'error'=>clientExceptionMessage('Reservasi grup gagal',$e)]);}
         break;
     case 'booking-negotiated-price':
         requireDesktopTabAccess($loggedInStaff,'rooms',['admin','manager','receptionist']);

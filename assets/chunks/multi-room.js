@@ -1,6 +1,6 @@
-import {f,t} from './vendor-react.js?v=20261008-multiroom-r14';
-import {TamasyaViewportLayer} from './viewport-layer.js?v=20261008-multiroom-r14';
-const h=(tag,props,...children)=>t.jsx(tag,{...props,children:children.length===1?children[0]:children});
+import {f,t} from './vendor-react.js?v=20261008-r14-dbfix';
+import {TamasyaViewportLayer} from './viewport-layer.js?v=20261008-r14-dbfix';
+const h=(tag,props,...children)=>t.jsx(tag,children.length===0?{...props}:{...props,children:children.length===1?children[0]:children});
 const money=n=>window.TamasyaCurrencyDisplay.formatRupiah(n);
 const today=()=>window.TamasyaPosBusinessDatePolicy.dateAt(new Date(),window.TAMASYA_RUNTIME_CONFIG.propertyTimezone);
 const tomorrow=()=>{const d=new Date(today()+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10);};
@@ -86,6 +86,6 @@ export function TamasyaMultiRoomPanel({currentRole,onRefresh,onSelectRoom,onChec
    ...data.folios.map(folio=>h('div',{className:'mr-note',key:folio.folio.id},h('strong',{},`Master folio ${folio.folio.folio_number}`),h('p',{},`Tagihan ${money(folio.chargeTotal)} · Alokasi pembayaran ${money(folio.paymentAllocatedTotal)} · Sisa ${money(folio.balance)}`))),
    h('p',{className:'mr-note'},'Checkout, perpanjangan, pindah kamar, deposito jaminan, dan kunci melalui Detail kamar. Satu tindakan hanya memengaruhi booking yang dipilih.'));
  }
- return h(f.Fragment,{},h('link',{rel:'stylesheet',href:'./assets/multi-room.css?v=20261008-multiroom-r14'}),h('div',{className:'mr-launch'},write&&h('button',{type:'button',disabled:!isOnline,onClick:()=>begin('reserve')},'Reservasi Beberapa Kamar'),write&&h('button',{type:'button',disabled:!isOnline,onClick:()=>begin('check_in_now')},'Check-in Beberapa Kamar'),h('button',{type:'button',onClick:list},'Daftar Grup')),
- view&&h(TamasyaViewportLayer,{className:'fixed inset-0 z-50 bg-black/70 backdrop-blur-sm mr-overlay'},h('section',{className:'mr-dialog',role:'dialog','aria-modal':true,'aria-label':'Reservasi grup'},h('header',{},h('h2',{},view==='create'?(intent==='reserve'?'Reservasi Beberapa Kamar':'Check-in Beberapa Kamar'):view==='list'?'Daftar Reservasi Grup':'Detail Reservasi Grup'),h('button',{type:'button',disabled:busy,onClick:close,'aria-label':'Tutup reservasi grup'},'×')),h('div',{className:'mr-body','aria-busy':busy},!isOnline&&h('p',{role:'status',className:'mr-error'},'Server belum terhubung. Perubahan grup memerlukan server aktif.'),error&&h('p',{role:'alert',className:'mr-error'},error),content))));
+ return h(f.Fragment,{},h('link',{rel:'stylesheet',href:'./assets/multi-room.css?v=20261008-r14-dbfix'}),h('div',{className:'mr-launch'},write&&h('button',{type:'button',disabled:!isOnline,onClick:()=>begin('reserve')},'Reservasi Beberapa Kamar'),write&&h('button',{type:'button',disabled:!isOnline,onClick:()=>begin('check_in_now')},'Check-in Beberapa Kamar'),h('button',{type:'button',onClick:list},'Daftar Grup')),
+ view&&h(TamasyaViewportLayer,{className:'fixed inset-0 z-50 bg-black/70 backdrop-blur-sm mr-overlay','aria-label':'Reservasi grup'},h('section',{className:'mr-dialog'},h('header',{},h('h2',{},view==='create'?(intent==='reserve'?'Reservasi Beberapa Kamar':'Check-in Beberapa Kamar'):view==='list'?'Daftar Reservasi Grup':'Detail Reservasi Grup'),h('button',{type:'button',disabled:busy,onClick:close,'aria-label':'Tutup reservasi grup'},'×')),h('div',{className:'mr-body','aria-busy':busy},!isOnline&&h('p',{role:'status',className:'mr-error'},'Server belum terhubung. Perubahan grup memerlukan server aktif.'),error&&h('p',{role:'alert',className:'mr-error'},error),content))));
 }
